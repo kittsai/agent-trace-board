@@ -4,6 +4,8 @@ Coding Agent 的执行过程追踪面板。
 
 实时监控和事后分析 Claude Code 等 Coding Agent 的执行过程，帮开发者理解 Agent 在做什么、为什么这么做、哪里可以优化。
 
+![Agent Trace Board](docs/images/screenshot.png)
+
 ## 功能特性
 
 - **三栏布局** — Session 列表 → Turn 列表 → 详情面板
