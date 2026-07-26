@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" fill="none">
+  <!-- 背景圆形 -->
+  <circle cx="60" cy="60" r="56" fill="#1a1a2e" stroke="#4a9eff" stroke-width="2"/>
+
+  <!-- 机器人天线 -->
+  <line x1="60" y1="28" x2="60" y2="20" stroke="#4a9eff" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="60" cy="18" r="4" fill="#4a9eff"/>
+
+  <!-- 机器人头部 -->
+  <rect x="38" y="30" width="44" height="30" rx="8" fill="#4a9eff"/>
+
+  <!-- 机器人眼睛 -->
+  <circle cx="50" cy="45" r="6" fill="#1a1a2e"/>
+  <circle cx="70" cy="45" r="6" fill="#1a1a2e"/>
+  <circle cx="50" cy="45" r="3" fill="#fff"/>
+  <circle cx="70" cy="45" r="3" fill="#fff"/>
+
+  <!-- 机器人嘴巴 -->
+  <rect x="48" y="52" width="24" height="4" rx="2" fill="#1a1a2e"/>
+
+  <!-- 机器人身体 -->
+  <rect x="42" y="62" width="36" height="28" rx="6" fill="#4a9eff"/>
+
+  <!-- 身体上的屏幕/面板 -->
+  <rect x="48" y="68" width="24" height="16" rx="3" fill="#1a1a2e"/>
+
+  <!-- 屏幕上的追踪线条 -->
+  <path d="M52 76 L56 76 L56 72 L60 72 L60 76 L64 76 L64 72 L68 72"
+        stroke="#4a9eff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+
+  <!-- 机器人手臂 -->
+  <rect x="30" y="68" width="8" height="16" rx="4" fill="#4a9eff"/>
+  <rect x="82" y="68" width="8" height="16" rx="4" fill="#4a9eff"/>
+
+  <!-- 机器人腿部 -->
+  <rect x="48" y="92" width="8" height="12" rx="4" fill="#4a9eff"/>
+  <rect x="64" y="92" width="8" height="12" rx="4" fill="#4a9eff"/>
+
+  <!-- 文字 -->
+  <text x="60" y="115" text-anchor="middle" font-family="Arial, sans-serif" font-size="8" font-weight="bold" fill="#4a9eff">
+    AGENT TRACE BOARD
+  </text>
+</svg>

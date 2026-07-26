@@ -1,0 +1,20 @@
+[project]
+name = "agent-trace-viewer"
+version = "0.1.0"
+description = "Coding Agent 的执行过程录像机"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.30.0",
+    "sqlalchemy>=2.0.0",
+    "watchfiles>=0.21.0",
+    "websockets>=13.0",
+    "pydantic>=2.0.0",
+]
+
+[project.scripts]
+atv = "cli:main"
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"

@@ -1,0 +1,9 @@
+node_modules/
+dist/
+__pycache__/
+*.pyc
+*.egg-info/
+.env
+.vite/
+.playwright-mcp/
+.claude/
