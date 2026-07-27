@@ -10,6 +10,8 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Toaster } from '@/components/ui/sonner';
+import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@/components/ui/chart';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { toast } from 'sonner';
 import {
   Bot, User, Brain, Zap, Check, Search, Copy, Image as ImageIcon,
@@ -1672,7 +1674,6 @@ function CostView({ sessionId }: { sessionId: string }) {
     { label: '缓存读', tokens: totals.cache_read_tokens, price: pricing.cache_read_per_mtok, cls: 'bg-green-500' },
     { label: '缓存写', tokens: totals.cache_creation_tokens, price: pricing.cache_creation_per_mtok, cls: 'bg-amber-500' },
   ];
-  const maxTurnCost = Math.max(...per_turn.map((t) => t.estimated_cost_usd), 0.0001);
 
   return (
     <div className="flex-1 overflow-auto p-4 space-y-5">
@@ -1739,35 +1740,110 @@ function CostView({ sessionId }: { sessionId: string }) {
       </div>
 
       {/* 每轮成本柱状图 */}
-      {per_turn.length > 0 && (
-        <div>
-          <div className="text-xs font-semibold text-muted-foreground mb-2">
-            每轮成本 <span className="text-muted-foreground/60 font-normal">({per_turn.length} 轮)</span>
-          </div>
-          <div className="flex items-end gap-1 h-32 border-b pb-0.5">
-            {per_turn.map((t) => {
-              const ratio = t.estimated_cost_usd / maxTurnCost;
-              const hasCost = t.estimated_cost_usd > 0;
-              return (
-                <div
-                  key={t.turn_index}
-                  className="flex-1 min-w-[6px] flex flex-col justify-end group relative"
-                  title={`Turn ${t.turn_index}: ${fmtCost(t.estimated_cost_usd)}\n输入 ${fmtTokens(t.input_tokens)} · 输出 ${fmtTokens(t.output_tokens)}\n缓存读 ${fmtTokens(t.cache_read_tokens)} · 缓存写 ${fmtTokens(t.cache_creation_tokens)}`}
-                >
-                  <div
-                    className={`${hasCost ? 'bg-primary/70 group-hover:bg-primary' : 'bg-muted-foreground/20'} rounded-t transition-colors`}
-                    style={{ height: hasCost ? `${ratio * 100}%` : '2px', minHeight: '2px' }}
-                  />
+      {per_turn.length > 0 && (() => {
+        const maxTurnCost = Math.max(...per_turn.map((t) => t.estimated_cost_usd), 0.0001);
+        // 用 P95 作为 Y 轴上限，避免极端值压缩其他柱子
+        const sorted = [...per_turn].map(t => t.estimated_cost_usd).sort((a, b) => a - b);
+        const p95Index = Math.floor(sorted.length * 0.95);
+        const yMax = Math.max(sorted[p95Index] || maxTurnCost, 0.0001);
+        const chartMax = Math.max(yMax, maxTurnCost * 0.6);
+
+        // 根据占比最大的 token 类型选择颜色（与上方颜色一致）
+        const TOKEN_COLORS = {
+          input: '#3b82f6',       // 蓝色 - 新输入
+          cache_read: '#22c55e',  // 绿色 - 缓存读
+          cache_write: '#f59e0b', // 琥珀色 - 缓存写
+          output: '#a855f7',      // 紫色 - 输出
+        };
+
+        const getBarColor = (t: typeof per_turn[0]) => {
+          const total = t.input_tokens + t.output_tokens + t.cache_read_tokens + t.cache_creation_tokens;
+          if (total === 0) return 'hsl(var(--muted-foreground))';
+          // 找占比最大的类型
+          const max = Math.max(t.input_tokens, t.output_tokens, t.cache_read_tokens, t.cache_creation_tokens);
+          if (max === t.input_tokens) return TOKEN_COLORS.input;
+          if (max === t.cache_read_tokens) return TOKEN_COLORS.cache_read;
+          if (max === t.cache_creation_tokens) return TOKEN_COLORS.cache_write;
+          return TOKEN_COLORS.output;
+        };
+
+        // 准备图表数据
+        const chartData = per_turn.map((t) => ({
+          name: `T${t.turn_index + 1}`,
+          cost: t.estimated_cost_usd,
+          input: t.input_tokens,
+          output: t.output_tokens,
+          cacheRead: t.cache_read_tokens,
+          cacheWrite: t.cache_creation_tokens,
+          color: getBarColor(t),
+        }));
+
+        const chartConfig = {
+          cost: {
+            label: '成本',
+          },
+        } satisfies ChartConfig;
+
+        return (
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground mb-2">
+              每轮成本 <span className="text-muted-foreground/60 font-normal">({per_turn.length} 轮)</span>
+            </div>
+            <ChartContainer config={chartConfig} className="h-[200px] w-full">
+              <BarChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis
+                  dataKey="name"
+                  tick={{ fontSize: 10 }}
+                  tickLine={false}
+                  axisLine={false}
+                  interval={Math.max(Math.floor(per_turn.length / 20), 0)}
+                />
+                <YAxis
+                  tick={{ fontSize: 10 }}
+                  tickLine={false}
+                  axisLine={false}
+                  tickFormatter={(v) => fmtCost(v)}
+                  width={50}
+                />
+                <ChartTooltip
+                  content={({ active, payload }) => {
+                    if (!active || !payload?.length) return null;
+                    const data = payload[0].payload;
+                    return (
+                      <div className="bg-background border rounded-lg shadow-lg p-2 text-xs space-y-1">
+                        <div className="font-medium">{data.name}</div>
+                        <div>成本: {fmtCost(data.cost)}</div>
+                        <div className="text-muted-foreground">
+                          输入 {fmtTokens(data.input)} · 输出 {fmtTokens(data.output)}
+                        </div>
+                        <div className="text-muted-foreground">
+                          缓存读 {fmtTokens(data.cacheRead)} · 缓存写 {fmtTokens(data.cacheWrite)}
+                        </div>
+                      </div>
+                    );
+                  }}
+                />
+                <Bar dataKey="cost" radius={[2, 2, 0, 0]} maxBarSize={40}>
+                  {chartData.map((entry, index) => (
+                    <Cell key={index} fill={entry.color} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ChartContainer>
+            <div className="flex flex-wrap justify-center gap-x-3 gap-y-1 mt-2">
+              {Object.entries(TOKEN_COLORS).map(([key, color]) => (
+                <div key={key} className="flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
+                  <span className="text-[10px] text-muted-foreground">
+                    {key === 'input' ? '新输入' : key === 'cache_read' ? '缓存读' : key === 'cache_write' ? '缓存写' : '输出'}
+                  </span>
                 </div>
-              );
-            })}
+              ))}
+            </div>
           </div>
-          <div className="flex justify-between text-[9px] text-muted-foreground/60 mt-0.5">
-            <span>T1</span>
-            <span>T{per_turn.length}</span>
-          </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* 每工具表 */}
       {per_tool.length > 0 && (
