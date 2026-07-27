@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import os
+from collections import OrderedDict
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -16,8 +18,12 @@ SESSIONS_DIR = CLAUDE_DIR / "sessions"
 class SessionService:
     def __init__(self):
         self.parser = ClaudeCodeParser()
-        # 内存缓存：session_id → 解析结果
-        self._cache: Dict[str, dict] = {}
+        # 完整解析结果缓存：session_id → {session, turns, steps}
+        self._cache: "OrderedDict[str, dict]" = OrderedDict()
+        self._CACHE_CAP = 50
+        # 列表元数据缓存：file_path → (mtime, summary)
+        self._meta_cache: "OrderedDict[str, tuple[float, dict]]" = OrderedDict()
+        self._META_CAP = 1000
 
     def list_sessions(self, search: Optional[str] = None, status: Optional[str] = None) -> List[dict]:
         """列出所有 session。"""
@@ -26,11 +32,13 @@ class SessionService:
         if not PROJECTS_DIR.exists():
             return sessions
 
+        status_map = self._build_status_map()
+
         for project_dir in PROJECTS_DIR.iterdir():
             if not project_dir.is_dir():
                 continue
             for jsonl_file in project_dir.glob("*.jsonl"):
-                session = self._get_session_summary(jsonl_file)
+                session = self._get_session_summary(jsonl_file, status_map)
                 if session:
                     if search and search.lower() not in (session.get("title") or "").lower():
                         continue
@@ -118,6 +126,7 @@ class SessionService:
         total_input = 0
         total_output = 0
         total_cache = 0
+        total_cache_creation = 0
 
         for s in steps:
             type_counts[s["type"]] = type_counts.get(s["type"], 0) + 1
@@ -128,6 +137,7 @@ class SessionService:
             total_input += s.get("input_tokens", 0)
             total_output += s.get("output_tokens", 0)
             total_cache += s.get("cache_read_tokens", 0)
+            total_cache_creation += s.get("cache_creation_tokens", 0)
 
         return {
             "total_steps": len(steps),
@@ -135,6 +145,7 @@ class SessionService:
             "total_input_tokens": total_input,
             "total_output_tokens": total_output,
             "total_cache_read_tokens": total_cache,
+            "total_cache_creation_tokens": total_cache_creation,
             "total_duration_ms": total_duration,
             "tool_counts": tool_counts,
             "type_counts": type_counts,
@@ -161,18 +172,48 @@ class SessionService:
     def _parse_cached(self, jsonl_path: Path) -> dict:
         """带缓存的解析。"""
         session_id = jsonl_path.stem
-        if session_id not in self._cache:
+        if session_id in self._cache:
+            self._cache.move_to_end(session_id)
+        else:
             self._cache[session_id] = self.parser.parse_file(str(jsonl_path))
+            if len(self._cache) > self._CACHE_CAP:
+                self._cache.popitem(last=False)
         return self._cache[session_id]
 
-    def _get_session_summary(self, jsonl_path: Path) -> Optional[dict]:
-        """快速获取 session 摘要（只读前几行，不解析全部）。"""
+    def _get_session_summary(self, jsonl_path: Path, status_map: dict) -> Optional[dict]:
+        """快速获取 session 摘要（mtime-keyed 缓存，只读前几行）。"""
+        session_id = jsonl_path.stem
+        key = str(jsonl_path)
+
+        try:
+            mtime = os.stat(jsonl_path).st_mtime
+        except OSError:
+            return None
+
+        cached = self._meta_cache.get(key)
+        if cached and cached[0] == mtime:
+            self._meta_cache.move_to_end(key)
+            summary = dict(cached[1])
+        else:
+            summary = self._read_summary_from_disk(jsonl_path)
+            if summary is None:
+                return None
+            self._meta_cache[key] = (mtime, summary)
+            if len(self._meta_cache) > self._META_CAP:
+                self._meta_cache.popitem(last=False)
+            summary = dict(summary)
+
+        # status 不进缓存:它依赖 sessions/*.json,JSONL 不变时也可能变(agent 停止)
+        summary["status"] = status_map.get(session_id, "completed")
+        return summary
+
+    def _read_summary_from_disk(self, jsonl_path: Path) -> Optional[dict]:
+        """从磁盘读取 session 摘要（只读前 200 行，不含 status）。"""
         session_id = jsonl_path.stem
         project_path = _decode_project_path(jsonl_path.parent.name)
         title = None
         first_ts = None
         last_ts = None
-        status = self._check_status(session_id)
 
         # 快速扫描：只找 ai-title 和第一行/最后一行的时间戳
         try:
@@ -203,25 +244,27 @@ class SessionService:
             "title": title,
             "started_at": first_ts,
             "finished_at": last_ts,
-            "status": status,
             "total_input_tokens": 0,  # 快速摘要不计算 token
             "total_output_tokens": 0,
             "total_cache_read_tokens": 0,
+            "total_cache_creation_tokens": 0,
             "file_path": str(jsonl_path),
         }
 
-    def _check_status(self, session_id: str) -> str:
-        """检查 session 是否活跃。"""
+    def _build_status_map(self) -> dict[str, str]:
+        """一次扫描 sessions/*.json,返回 {sessionId: status}。"""
         if not SESSIONS_DIR.exists():
-            return "completed"
+            return {}
+        result: dict[str, str] = {}
         for meta_file in SESSIONS_DIR.glob("*.json"):
             try:
                 meta = json.loads(meta_file.read_text())
-                if meta.get("sessionId") == session_id:
-                    return "active" if meta.get("status") == "busy" else "completed"
             except (json.JSONDecodeError, OSError):
                 continue
-        return "completed"
+            sid = meta.get("sessionId")
+            if sid:
+                result[sid] = "active" if meta.get("status") == "busy" else "completed"
+        return result
 
     def _step_matches(self, step: dict, search_lower: str) -> bool:
         """检查 step 是否匹配搜索关键词。"""
@@ -257,3 +300,15 @@ def _ts_to_ms(ts) -> Optional[int]:
         except ValueError:
             return None
     return None
+
+
+# 模块级单例:所有 handler 和 watcher 共享同一个 SessionService,
+# 否则每个请求 new 一个实例,_cache 永远是空的,缓存形同虚设。
+_service: "SessionService | None" = None
+
+
+def get_session_service() -> "SessionService":
+    global _service
+    if _service is None:
+        _service = SessionService()
+    return _service

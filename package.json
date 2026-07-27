@@ -5,10 +5,10 @@
   "description": "Coding Agent 的执行过程追踪面板",
   "scripts": {
     "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
-    "dev:backend": "cd backend && python3 -m uvicorn main:app --host 0.0.0.0 --port 8080 --reload",
+    "dev:backend": "cd backend && python3 -m uvicorn main:app --host 0.0.0.0 --port 18080 --reload",
     "dev:frontend": "cd frontend && npm run dev",
     "build": "cd frontend && npm run build",
-    "start": "cd backend && python3 -m uvicorn main:app --host 0.0.0.0 --port 8080",
+    "start": "cd backend && python3 -m uvicorn main:app --host 0.0.0.0 --port 18080",
     "list": "cd backend && python3 cli.py list"
   },
   "devDependencies": {

@@ -12,7 +12,7 @@ class StepOut(BaseModel):
     session_id: str
     turn_id: Optional[int] = None
     step_index: int
-    type: str  # thinking | tool_call | tool_result | text | system | attachment
+    type: str  # thinking | tool_call | tool_result | text | system | attachment | compact
     timestamp: Optional[int] = None
     duration_ms: Optional[int] = None
     tool_name: Optional[str] = None
@@ -24,6 +24,7 @@ class StepOut(BaseModel):
     input_tokens: int = 0
     output_tokens: int = 0
     cache_read_tokens: int = 0
+    cache_creation_tokens: int = 0
 
 
 class TurnOut(BaseModel):
@@ -48,6 +49,7 @@ class SessionOut(BaseModel):
     total_input_tokens: int = 0
     total_output_tokens: int = 0
     total_cache_read_tokens: int = 0
+    total_cache_creation_tokens: int = 0
     file_path: str
 
 
@@ -57,6 +59,7 @@ class StatsOut(BaseModel):
     total_input_tokens: int
     total_output_tokens: int
     total_cache_read_tokens: int
+    total_cache_creation_tokens: int
     total_duration_ms: int
     tool_counts: Dict[str, int]
     type_counts: Dict[str, int]

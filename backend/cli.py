@@ -15,7 +15,7 @@ def main():
 
     # serve
     serve_parser = subparsers.add_parser("serve", help="启动服务")
-    serve_parser.add_argument("--port", type=int, default=8080, help="端口号")
+    serve_parser.add_argument("--port", type=int, default=18080, help="端口号")
     serve_parser.add_argument("--host", default="0.0.0.0", help="监听地址")
 
     # list

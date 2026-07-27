@@ -1,6 +1,10 @@
 import { useState, useCallback, useEffect, useRef, useMemo, memo, createContext, useContext, type ReactNode } from 'react';
 import { useSessions } from './hooks/useSessions';
 import { useTurns, useStats } from './hooks/useSteps';
+import { useFileChanges, useFileChangeDiff } from './hooks/useFileHistory';
+import { useTodos } from './hooks/useTodos';
+import { useCost } from './hooks/useCost';
+import { useSubagentTrace } from './hooks/useSubagentTrace';
 import { useWebSocket } from './hooks/useWebSocket';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -10,16 +14,17 @@ import { toast } from 'sonner';
 import {
   Bot, User, Brain, Zap, Check, Search, Copy, Image as ImageIcon,
   ChevronRight, ChevronDown, Terminal, FileText, FileEdit,
-  FolderSearch, FileSearch, Globe,
+  FolderSearch, FileSearch, Globe, Loader2, MessageSquare, FileDiff, ListTodo, DollarSign, Archive, Network, X,
 } from 'lucide-react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { diffLines } from 'diff';
-import type { Session, Step, Turn, ContentBlock, WSEvent } from './types';
+import type { Session, Step, Turn, ContentBlock, WSEvent, FileChange, FileChangeDiff, TodoTask, CostAnalysis, CostPerTurn, CostPerTool } from './types';
 
 const ImagePreviewContext = createContext<(src: string) => void>(() => {});
+const SubagentJumpContext = createContext<(toolUseId: string) => void>(() => {});
 
 function App() {
   const [selectedSession, setSelectedSession] = useState<string | null>(
@@ -30,6 +35,8 @@ function App() {
   const [search, setSearch] = useState('');
   const [platform, setPlatform] = useState('claude-code');
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [detailTab, setDetailTab] = useState<'conversation' | 'files' | 'todos' | 'cost'>('conversation');
+  const [subagentDrawerToolUseId, setSubagentDrawerToolUseId] = useState<string | null>(null);
 
   // 复制 session ID
   const copySessionId = useCallback(() => {
@@ -43,7 +50,7 @@ function App() {
   const detailRef = useRef<HTMLDivElement>(null);
 
   const { sessions, refresh: refreshSessions } = useSessions({ search: search || undefined });
-  const { turns, refresh: refreshTurns } = useTurns(selectedSession || undefined);
+  const { turns, refresh: refreshTurns, loading: turnsLoading } = useTurns(selectedSession || undefined);
   const { stats } = useStats(selectedSession || undefined);
 
   // 获取当前选中的 session 信息
@@ -164,6 +171,19 @@ function App() {
     }, 300);
   }, []);
 
+  // turn 可见性回调 — 必须稳定(useCallback),否则 TurnDetailBlock 的 memo 失效,
+  // 右栏所有 turn 会在每次点击时全部重渲染(切换卡顿的根因)
+  const handleTurnVisible = useCallback((turnIndex: number, visible: boolean) => {
+    if (visible && !clickingRef.current) {
+      setVisibleTurnId(turnIndex);
+    }
+  }, []);
+
+  // 对话里 Agent tool_use → 弹出子 agent trace drawer
+  const handleOpenSubagent = useCallback((toolUseId: string) => {
+    setSubagentDrawerToolUseId(toolUseId);
+  }, []);
+
   // 当前可见 turn 变化时，瞬间跳转左栏使其可见（点击跳转时跳过）
   useEffect(() => {
     if (clickingRef.current) return;
@@ -238,21 +258,22 @@ function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, [previewImage]);
 
-  const formatTime = (ms: number | null) => {
+  const formatTime = useCallback((ms: number | null) => {
     if (!ms) return '-';
     const d = new Date(ms);
     const pad = (n: number) => String(n).padStart(2, '0');
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-  };
+  }, []);
 
-  const formatDuration = (ms: number | null) => {
+  const formatDuration = useCallback((ms: number | null) => {
     if (!ms) return '';
     if (ms < 1000) return `${ms}ms`;
     return `${(ms / 1000).toFixed(1)}s`;
-  };
+  }, []);
 
   return (
     <ImagePreviewContext.Provider value={setPreviewImage}>
+    <SubagentJumpContext.Provider value={handleOpenSubagent}>
     <div className="h-screen flex bg-background text-foreground overflow-hidden">
       {/* 左栏：Session 列表 */}
       <div className="w-64 flex-shrink-0 border-r flex flex-col overflow-hidden">
@@ -351,7 +372,37 @@ function App() {
               </div>
             )}
 
+            {/* Tab 切换 */}
+            <div className="border-b px-3 py-1.5 flex items-center gap-1 bg-muted/20">
+              <TabButton
+                active={detailTab === 'conversation'}
+                onClick={() => setDetailTab('conversation')}
+                icon={<MessageSquare className="w-3.5 h-3.5" />}
+                label="对话"
+              />
+              <TabButton
+                active={detailTab === 'files'}
+                onClick={() => setDetailTab('files')}
+                icon={<FileDiff className="w-3.5 h-3.5" />}
+                label="文件变更"
+              />
+              <TabButton
+                active={detailTab === 'todos'}
+                onClick={() => setDetailTab('todos')}
+                icon={<ListTodo className="w-3.5 h-3.5" />}
+                label="任务"
+              />
+              <TabButton
+                active={detailTab === 'cost'}
+                onClick={() => setDetailTab('cost')}
+                icon={<DollarSign className="w-3.5 h-3.5" />}
+                label="成本"
+              />
+            </div>
+
             <div className="flex-1 flex overflow-hidden">
+            {detailTab === 'conversation' ? (
+            <>
             {/* 中栏：Turn 列表 */}
             <div className="w-[380px] flex-shrink-0 border-r flex flex-col overflow-hidden">
 
@@ -381,7 +432,10 @@ function App() {
             <div ref={detailRef} className="flex-1 overflow-auto">
               <div className="p-5 pb-20 space-y-6">
                 {turns.length === 0 ? (
-                  <div className="text-center text-muted-foreground text-sm mt-20">
+                  <div className="text-center text-muted-foreground text-sm mt-20 flex flex-col items-center gap-2">
+                    {selectedSession && turnsLoading ? (
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                    ) : null}
                     {selectedSession ? '加载中...' : '选择左侧对话查看详情'}
                   </div>
                 ) : (
@@ -390,17 +444,26 @@ function App() {
                       key={turn.turn_index}
                       turn={turn}
                       formatTime={formatTime}
-                      onVisible={(visible) => {
-                        // 点击跳转时忽略 IntersectionObserver
-                        if (visible && !clickingRef.current) {
-                          setVisibleTurnId(turn.turn_index);
-                        }
-                      }}
+                      onVisible={handleTurnVisible}
                     />
                   ))
                 )}
               </div>
             </div>
+            </>
+            ) : detailTab === 'files' ? (
+              <FileChangesView
+                sessionId={selectedSession}
+                formatTime={formatTime}
+              />
+            ) : detailTab === 'todos' ? (
+              <TodosView
+                sessionId={selectedSession}
+                formatTime={formatTime}
+              />
+            ) : (
+              <CostView sessionId={selectedSession} />
+            )}
             </div>
           </>
         )}
@@ -421,12 +484,36 @@ function App() {
           />
         </div>
       )}
+
+      {subagentDrawerToolUseId && selectedSession && (
+        <SubagentDrawer
+          sessionId={selectedSession}
+          toolUseId={subagentDrawerToolUseId}
+          formatTime={formatTime}
+          onClose={() => setSubagentDrawerToolUseId(null)}
+        />
+      )}
     </div>
+    </SubagentJumpContext.Provider>
     </ImagePreviewContext.Provider>
   );
 }
 
 // ── Turn 行 ──
+
+const TOOL_TAG_COLORS: Record<string, string> = {
+  Bash: 'bg-green-100 text-green-700',
+  Read: 'bg-blue-100 text-blue-700',
+  Write: 'bg-orange-100 text-orange-700',
+  Edit: 'bg-orange-100 text-orange-700',
+  Glob: 'bg-purple-100 text-purple-700',
+  Grep: 'bg-purple-100 text-purple-700',
+  Agent: 'bg-cyan-100 text-cyan-700',
+  WebFetch: 'bg-teal-100 text-teal-700',
+  WebSearch: 'bg-teal-100 text-teal-700',
+  TaskCreate: 'bg-amber-100 text-amber-700',
+  TaskUpdate: 'bg-amber-100 text-amber-700',
+};
 
 const TurnRow = memo(function TurnRow({
   turn,
@@ -501,7 +588,7 @@ const TurnRow = memo(function TurnRow({
             <span className="text-[10px] text-muted-foreground/50">·</span>
             <div className="flex flex-wrap gap-1">
               {topTools.map(([name, count]) => (
-                <span key={name} className="text-[10px] text-muted-foreground/70 px-1 py-0.5">
+                <span key={name} className={`text-[9px] px-1.5 py-0.5 rounded font-mono ${TOOL_TAG_COLORS[name] || 'bg-muted text-muted-foreground'}`}>
                   {name}{count > 1 ? `×${count}` : ''}
                 </span>
               ))}
@@ -525,7 +612,7 @@ const TurnDetailBlock = memo(function TurnDetailBlock({
 }: {
   turn: Turn;
   formatTime: (ms: number | null) => string;
-  onVisible: (visible: boolean) => void;
+  onVisible: (turnIndex: number, visible: boolean) => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   // 使用 ref 存储最新的 onVisible 回调，避免 useEffect 依赖变化
@@ -540,7 +627,7 @@ const TurnDetailBlock = memo(function TurnDetailBlock({
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
-          onVisibleRef.current(true);
+          onVisibleRef.current(turn.turn_index, true);
         }
       },
       { rootMargin: '-20% 0px -20% 0px', threshold: 0 }
@@ -686,6 +773,30 @@ function formatDurationStatic(ms: number | null): string {
 function StepBlock({ step, formatTime }: { step: Step; formatTime: (ms: number | null) => string }) {
   const role = step.role || step.type;
   const blocks = step.content_blocks || [];
+
+  // 压缩摘要:上下文压缩产物,渲染为分隔标记而非普通 step
+  if (step.type === 'compact') {
+    return (
+      <div className="border border-dashed border-amber-300 bg-amber-50/40 rounded-md pl-3 pr-2 py-1.5 my-2">
+        <div className="flex items-center gap-1.5">
+          <Archive className="w-3.5 h-3.5 text-amber-600" />
+          <span className="text-xs font-medium text-amber-800">压缩摘要</span>
+          <span className="text-[10px] text-muted-foreground/60 ml-1">上下文已压缩,前序对话被摘要</span>
+          <span className="text-[10px] text-muted-foreground font-mono ml-auto">
+            {formatTime(step.timestamp)}
+          </span>
+        </div>
+        <Collapsible
+          summary={<span className="text-[10px] text-muted-foreground hover:text-foreground">查看摘要内容</span>}
+        >
+          <pre className="bg-muted/50 p-2 rounded text-[11px] whitespace-pre-wrap overflow-auto max-h-48 font-mono mt-1">
+            {step.content}
+          </pre>
+        </Collapsible>
+      </div>
+    );
+  }
+
   const isUser = role === 'user';
 
   // user 消息已在 TurnDetail 顶部展示，跳过
@@ -774,7 +885,8 @@ const TOOL_STYLES: Record<string, { border: string; icon: ReactNode; lang: strin
   WebSearch: { border: 'border-l-teal-500', icon: <Globe className="w-3.5 h-3.5 text-teal-500" />, lang: 'text' },
 };
 
-function ToolUseBlock({ name, input }: { name: string; input: Record<string, unknown> | undefined }) {
+function ToolUseBlock({ name, input, toolUseId }: { name: string; input: Record<string, unknown> | undefined; toolUseId?: string }) {
+  const jumpToSubagent = useContext(SubagentJumpContext);
   const style = TOOL_STYLES[name] || { border: 'border-l-gray-400', icon: <Zap className="w-3.5 h-3.5 text-gray-500" />, lang: 'json' };
 
   // 提取主要展示内容
@@ -898,9 +1010,17 @@ function ToolUseBlock({ name, input }: { name: string; input: Record<string, unk
       case 'Agent': {
         const desc = String(input.description || '');
         return (
-          <div className="flex items-center gap-2 text-xs">
-            <Bot className="w-3.5 h-3.5 text-cyan-400" />
+          <div className="flex items-center gap-2 text-xs flex-wrap">
+            <Bot className="w-3.5 h-3.5 text-cyan-400 flex-shrink-0" />
             <span className="text-cyan-400">{desc}</span>
+            {toolUseId && (
+              <button
+                onClick={() => jumpToSubagent(toolUseId)}
+                className="text-cyan-600 hover:text-cyan-800 hover:underline transition-colors flex items-center gap-0.5 flex-shrink-0"
+              >
+                查看子 agent <ChevronRight className="w-3 h-3" />
+              </button>
+            )}
           </div>
         );
       }
@@ -946,7 +1066,7 @@ function ToolUseBlock({ name, input }: { name: string; input: Record<string, unk
             <span className="font-medium font-mono text-xs">{name}</span>
           </span>
         }
-        defaultOpen={name === 'Bash'}
+        defaultOpen={name === 'Agent'}
       >
         <div className="mt-1">
           {renderMainContent()}
@@ -1023,7 +1143,7 @@ function ContentBlockDetail({ block }: { block: ContentBlock }) {
     const input = block.input as Record<string, unknown> | undefined;
 
     return (
-      <ToolUseBlock name={name} input={input} />
+      <ToolUseBlock name={name} input={input} toolUseId={block.id} />
     );
   }
 
@@ -1158,6 +1278,627 @@ function ContentBlockDetail({ block }: { block: ContentBlock }) {
         {JSON.stringify(block, null, 2)}
       </pre>
     </Collapsible>
+  );
+}
+
+// ── Tab 按钮 ──
+
+function TabButton({
+  active,
+  onClick,
+  icon,
+  label,
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon: ReactNode;
+  label: string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs transition-colors ${
+        active
+          ? 'bg-background text-foreground shadow-sm'
+          : 'text-muted-foreground hover:text-foreground'
+      }`}
+    >
+      {icon}
+      <span>{label}</span>
+    </button>
+  );
+}
+
+// ── 文件变更视图 ──
+
+function FileChangesView({
+  sessionId,
+  formatTime,
+}: {
+  sessionId: string;
+  formatTime: (ms: number | null) => string;
+}) {
+  const { fileChanges, loading } = useFileChanges(sessionId);
+  const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
+  const { diff, loading: diffLoading } = useFileChangeDiff(
+    sessionId,
+    selectedMessageId
+  );
+
+  // 加载完成后自动选中第一条
+  useEffect(() => {
+    if (!selectedMessageId && fileChanges.length > 0) {
+      setSelectedMessageId(fileChanges[0].message_id);
+    }
+  }, [fileChanges, selectedMessageId]);
+
+  if (loading) {
+    return (
+      <div className="flex-1 flex items-center justify-center text-muted-foreground">
+        <Loader2 className="w-5 h-5 animate-spin" />
+      </div>
+    );
+  }
+
+  if (fileChanges.length === 0) {
+    return (
+      <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">
+        本会话没有文件变更
+      </div>
+    );
+  }
+
+  return (
+    <>
+      {/* 左:变更列表 */}
+      <div className="w-80 flex-shrink-0 border-r flex flex-col overflow-hidden">
+        <div className="px-3 py-2 border-b text-xs font-semibold flex items-center gap-1.5">
+          <FileDiff className="w-3.5 h-3.5" />
+          <span>文件变更 ({fileChanges.length})</span>
+        </div>
+        <div className="flex-1 overflow-auto">
+          {fileChanges.map((c: FileChange) => {
+            const path = c.tracking_path || '';
+            const name = path.split('/').pop() || path;
+            const dir = path.includes('/') ? path.slice(0, path.length - name.length - 1) : '';
+            return (
+              <button
+                key={c.message_id}
+                onClick={() => setSelectedMessageId(c.message_id)}
+                className={`w-full text-left px-3 py-2 border-b transition-colors ${
+                  selectedMessageId === c.message_id
+                    ? 'bg-primary/10'
+                    : 'hover:bg-muted/40'
+                }`}
+              >
+                <div className="flex items-center gap-1.5 mb-0.5">
+                  {c.is_new_file ? (
+                    <Badge variant="outline" className="text-[9px] h-4 px-1">新建</Badge>
+                  ) : (
+                    <FileEdit className="w-3 h-3 text-orange-500 flex-shrink-0" />
+                  )}
+                  <span className="text-xs font-medium truncate">{name}</span>
+                  {c.step_index != null && (
+                    <span className="text-[10px] text-muted-foreground ml-auto font-mono">#{c.step_index}</span>
+                  )}
+                </div>
+                {dir && (
+                  <div className="text-[10px] text-muted-foreground/70 truncate ml-4">{dir}</div>
+                )}
+                <div className="text-[10px] text-muted-foreground mt-0.5 ml-4">
+                  {c.version != null && `v${c.version}`}
+                  {c.is_new_file ? ' · 新建文件' : ' · 编辑'}
+                  {' · '}{formatTime(c.timestamp)}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 右:diff */}
+      <div className="flex-1 overflow-auto">
+        {selectedMessageId ? (
+          diff ? (
+            <UnifiedDiff diff={diff} />
+          ) : diffLoading ? (
+            <div className="flex items-center justify-center h-full text-muted-foreground">
+              <Loader2 className="w-5 h-5 animate-spin" />
+            </div>
+          ) : null
+        ) : (
+          <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
+            选择左侧变更查看 diff
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
+// ── Unified Diff 渲染 ──
+
+function UnifiedDiff({ diff }: { diff: FileChangeDiff }) {
+  const lines = diff.diff ? diff.diff.split('\n') : [];
+
+  return (
+    <div className="p-4">
+      <div className="flex items-center gap-2 mb-3 flex-wrap">
+        <FileEdit className="w-4 h-4 text-orange-500 flex-shrink-0" />
+        <span className="font-mono text-xs break-all">{diff.tracking_path}</span>
+        {diff.is_new_file && (
+          <Badge variant="outline" className="text-[10px] h-4">新建文件</Badge>
+        )}
+      </div>
+      {lines.length === 0 ? (
+        <div className="text-xs text-muted-foreground">无差异</div>
+      ) : (
+        <div className="rounded-md border border-border overflow-hidden text-xs font-mono">
+          {lines.map((line, i) => {
+            if (line.startsWith('--- ') || line.startsWith('+++ ')) return null;
+            if (line.startsWith('@@')) {
+              return (
+                <div key={i} className="bg-blue-50 text-blue-700 px-2 py-0.5 border-b border-border/50">
+                  {line}
+                </div>
+              );
+            }
+            if (line.startsWith('+')) {
+              return (
+                <div key={i} className="flex bg-green-50">
+                  <span className="w-6 text-right pr-1 text-green-400/60 select-none shrink-0">+</span>
+                  <span className="text-green-700 pl-1 whitespace-pre-wrap break-all">{line.slice(1) || ' '}</span>
+                </div>
+              );
+            }
+            if (line.startsWith('-')) {
+              return (
+                <div key={i} className="flex bg-red-50">
+                  <span className="w-6 text-right pr-1 text-red-400/60 select-none shrink-0">-</span>
+                  <span className="text-red-700 pl-1 whitespace-pre-wrap break-all">{line.slice(1) || ' '}</span>
+                </div>
+              );
+            }
+            if (line.startsWith('\\')) {
+              return (
+                <div key={i} className="text-muted-foreground italic px-2 py-0.5">
+                  {line}
+                </div>
+              );
+            }
+            return (
+              <div key={i} className="flex">
+                <span className="w-6 text-right pr-1 text-muted-foreground/40 select-none shrink-0"> </span>
+                <span className="text-foreground/70 pl-1 whitespace-pre-wrap break-all">{line.slice(1) || ' '}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── 任务视图 ──
+
+const STATUS_STYLES: Record<string, { label: string; cls: string; dot: string }> = {
+  pending: { label: '待处理', cls: 'bg-gray-100 text-gray-600', dot: 'bg-gray-400' },
+  in_progress: { label: '进行中', cls: 'bg-blue-100 text-blue-700', dot: 'bg-blue-500' },
+  completed: { label: '已完成', cls: 'bg-green-100 text-green-700', dot: 'bg-green-500' },
+  deleted: { label: '已删除', cls: 'bg-red-100 text-red-700', dot: 'bg-red-500' },
+};
+
+function TodosView({
+  sessionId,
+  formatTime,
+}: {
+  sessionId: string;
+  formatTime: (ms: number | null) => string;
+}) {
+  const { tasks, loading } = useTodos(sessionId);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!selectedTaskId && tasks.length > 0) {
+      setSelectedTaskId(tasks[0].task_id);
+    }
+  }, [tasks, selectedTaskId]);
+
+  if (loading) {
+    return (
+      <div className="flex-1 flex items-center justify-center text-muted-foreground">
+        <Loader2 className="w-5 h-5 animate-spin" />
+      </div>
+    );
+  }
+
+  if (tasks.length === 0) {
+    return (
+      <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">
+        本会话没有任务
+      </div>
+    );
+  }
+
+  const selected = tasks.find((t) => t.task_id === selectedTaskId);
+
+  return (
+    <>
+      <div className="w-80 flex-shrink-0 border-r flex flex-col overflow-hidden">
+        <div className="px-3 py-2 border-b text-xs font-semibold flex items-center gap-1.5">
+          <ListTodo className="w-3.5 h-3.5" />
+          <span>任务 ({tasks.length})</span>
+        </div>
+        <div className="flex-1 overflow-auto">
+          {tasks.map((t: TodoTask) => {
+            const s = STATUS_STYLES[t.final_status] || STATUS_STYLES.pending;
+            return (
+              <button
+                key={t.task_id}
+                onClick={() => setSelectedTaskId(t.task_id)}
+                className={`w-full text-left px-3 py-2 border-b transition-colors ${
+                  selectedTaskId === t.task_id ? 'bg-primary/10' : 'hover:bg-muted/40'
+                }`}
+              >
+                <div className="flex items-center gap-1.5 mb-0.5">
+                  <span className={`w-1.5 h-1.5 rounded-full ${s.dot} flex-shrink-0`} />
+                  <span className="text-xs font-medium truncate flex-1">{t.subject || '(无标题)'}</span>
+                  {t.created_step_index != null && (
+                    <span className="text-[10px] text-muted-foreground font-mono">#{t.created_step_index}</span>
+                  )}
+                </div>
+                <div className="flex items-center gap-1.5 ml-3">
+                  <Badge variant="outline" className={`text-[9px] h-4 px-1 ${s.cls}`}>{s.label}</Badge>
+                  <span className="text-[10px] text-muted-foreground">#{t.task_id}</span>
+                  {t.events.length > 1 && (
+                    <span className="text-[10px] text-muted-foreground ml-auto">{t.events.length} 次变更</span>
+                  )}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-auto">
+        {selected ? (
+          <TodoTimeline task={selected} formatTime={formatTime} />
+        ) : (
+          <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
+            选择左侧任务查看状态轨迹
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
+// ── 任务状态轨迹 ──
+
+function TodoTimeline({
+  task,
+  formatTime,
+}: {
+  task: TodoTask;
+  formatTime: (ms: number | null) => string;
+}) {
+  return (
+    <div className="p-4">
+      <div className="mb-4">
+        <div className="flex items-center gap-2 mb-1">
+          <span className="text-sm font-medium">{task.subject || '(无标题)'}</span>
+          <span className="text-[10px] text-muted-foreground font-mono">#{task.task_id}</span>
+        </div>
+        {task.description && <p className="text-xs text-muted-foreground">{task.description}</p>}
+        {task.active_form && (
+          <p className="text-[11px] text-muted-foreground/70 mt-1">进行时: {task.active_form}</p>
+        )}
+      </div>
+
+      <div className="text-xs font-semibold text-muted-foreground mb-2">状态轨迹</div>
+      <div className="relative pl-5 space-y-3">
+        <div className="absolute left-[7px] top-1 bottom-1 w-px bg-border" />
+        {task.events.map((ev, i) => {
+          const s = STATUS_STYLES[ev.status] || STATUS_STYLES.pending;
+          const oldS = STATUS_STYLES[ev.old_status || 'pending'] || STATUS_STYLES.pending;
+          return (
+            <div key={i} className="relative">
+              <span className={`absolute -left-5 top-0.5 w-3 h-3 rounded-full ${s.dot} border-2 border-background`} />
+              <div className="flex items-center gap-2 flex-wrap">
+                {ev.event_type === 'created' ? (
+                  <Badge variant="outline" className="text-[9px] h-4 px-1">创建</Badge>
+                ) : (
+                  <Badge variant="outline" className={`text-[9px] h-4 px-1 ${oldS.cls}`}>{oldS.label}</Badge>
+                )}
+                <span className="text-muted-foreground text-[10px]">→</span>
+                <Badge variant="outline" className={`text-[9px] h-4 px-1 ${s.cls}`}>{s.label}</Badge>
+                {ev.step_index != null && (
+                  <span className="text-[10px] text-muted-foreground font-mono ml-auto">step #{ev.step_index}</span>
+                )}
+              </div>
+              <div className="text-[10px] text-muted-foreground/70 mt-0.5">{formatTime(ev.timestamp)}</div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── Token / 成本分析 ──
+
+const TOKEN_SEGMENTS = [
+  { key: 'fresh_input_ratio', label: '新输入', cls: 'bg-blue-500' },
+  { key: 'cache_read_ratio', label: '缓存读', cls: 'bg-green-500' },
+  { key: 'cache_creation_ratio', label: '缓存写', cls: 'bg-amber-500' },
+  { key: 'output_ratio', label: '输出', cls: 'bg-purple-500' },
+] as const;
+
+function fmtTokens(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return String(n);
+}
+
+function fmtCost(n: number): string {
+  if (n >= 1) return `$${n.toFixed(2)}`;
+  if (n > 0) return `$${n.toFixed(4)}`;
+  return '$0';
+}
+
+function CostView({ sessionId }: { sessionId: string }) {
+  const { analysis, loading } = useCost(sessionId);
+
+  if (loading) {
+    return (
+      <div className="flex-1 flex items-center justify-center text-muted-foreground">
+        <Loader2 className="w-5 h-5 animate-spin" />
+      </div>
+    );
+  }
+
+  if (!analysis) {
+    return (
+      <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">
+        无法加载成本数据
+      </div>
+    );
+  }
+
+  const { totals, pricing, per_turn, per_tool, cache_efficiency } = analysis;
+  const cards = [
+    { label: '输入', tokens: totals.input_tokens, price: pricing.input_per_mtok, cls: 'bg-blue-500' },
+    { label: '输出', tokens: totals.output_tokens, price: pricing.output_per_mtok, cls: 'bg-purple-500' },
+    { label: '缓存读', tokens: totals.cache_read_tokens, price: pricing.cache_read_per_mtok, cls: 'bg-green-500' },
+    { label: '缓存写', tokens: totals.cache_creation_tokens, price: pricing.cache_creation_per_mtok, cls: 'bg-amber-500' },
+  ];
+  const maxTurnCost = Math.max(...per_turn.map((t) => t.estimated_cost_usd), 0.0001);
+
+  return (
+    <div className="flex-1 overflow-auto p-4 space-y-5">
+      {/* 头部:总成本 + 档位 */}
+      <div className="flex items-end justify-between flex-wrap gap-2">
+        <div>
+          <div className="text-xs text-muted-foreground mb-0.5">估算总成本</div>
+          <div className="text-2xl font-bold tabular-nums">{fmtCost(totals.estimated_cost_usd)}</div>
+        </div>
+        <div className="text-right">
+          <Badge variant="outline" className="text-[10px] capitalize">{pricing.tier}</Badge>
+          {pricing.tiers_used.length > 1 && (
+            <span className="text-[10px] text-muted-foreground ml-1">+ 混档 {pricing.tiers_used.length}</span>
+          )}
+          <div className="text-[10px] text-muted-foreground mt-0.5">{totals.total_tokens.toLocaleString()} tokens</div>
+        </div>
+      </div>
+
+      {/* 4 stat 卡 */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+        {cards.map((c) => (
+          <div key={c.label} className="border rounded-lg p-2.5">
+            <div className="flex items-center gap-1.5 mb-1">
+              <span className={`w-2 h-2 rounded-full ${c.cls}`} />
+              <span className="text-[11px] text-muted-foreground">{c.label}</span>
+            </div>
+            <div className="text-sm font-semibold tabular-nums">{fmtTokens(c.tokens)}</div>
+            <div className="text-[10px] text-muted-foreground/70 mt-0.5">
+              {c.tokens.toLocaleString()} · ${c.price}/MTok
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* 缓存效率 */}
+      <div>
+        <div className="text-xs font-semibold text-muted-foreground mb-1.5">缓存效率</div>
+        <div className="flex h-5 rounded overflow-hidden border">
+          {TOKEN_SEGMENTS.map((seg) => {
+            const ratio = cache_efficiency[seg.key];
+            if (ratio <= 0) return null;
+            return (
+              <div
+                key={seg.key}
+                className={`${seg.cls} flex items-center justify-center text-[9px] text-white font-medium`}
+                style={{ width: `${ratio * 100}%` }}
+                title={`${seg.label}: ${(ratio * 100).toFixed(1)}%`}
+              >
+                {ratio > 0.08 ? `${(ratio * 100).toFixed(0)}%` : ''}
+              </div>
+            );
+          })}
+        </div>
+        <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1.5">
+          {TOKEN_SEGMENTS.map((seg) => (
+            <div key={seg.key} className="flex items-center gap-1">
+              <span className={`w-2 h-2 rounded-full ${seg.cls}`} />
+              <span className="text-[10px] text-muted-foreground">
+                {seg.label} {(cache_efficiency[seg.key] * 100).toFixed(1)}%
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* 每轮成本柱状图 */}
+      {per_turn.length > 0 && (
+        <div>
+          <div className="text-xs font-semibold text-muted-foreground mb-2">
+            每轮成本 <span className="text-muted-foreground/60 font-normal">({per_turn.length} 轮)</span>
+          </div>
+          <div className="flex items-end gap-1 h-32 border-b pb-0.5">
+            {per_turn.map((t) => {
+              const ratio = t.estimated_cost_usd / maxTurnCost;
+              const hasCost = t.estimated_cost_usd > 0;
+              return (
+                <div
+                  key={t.turn_index}
+                  className="flex-1 min-w-[6px] flex flex-col justify-end group relative"
+                  title={`Turn ${t.turn_index}: ${fmtCost(t.estimated_cost_usd)}\n输入 ${fmtTokens(t.input_tokens)} · 输出 ${fmtTokens(t.output_tokens)}\n缓存读 ${fmtTokens(t.cache_read_tokens)} · 缓存写 ${fmtTokens(t.cache_creation_tokens)}`}
+                >
+                  <div
+                    className={`${hasCost ? 'bg-primary/70 group-hover:bg-primary' : 'bg-muted-foreground/20'} rounded-t transition-colors`}
+                    style={{ height: hasCost ? `${ratio * 100}%` : '2px', minHeight: '2px' }}
+                  />
+                </div>
+              );
+            })}
+          </div>
+          <div className="flex justify-between text-[9px] text-muted-foreground/60 mt-0.5">
+            <span>T1</span>
+            <span>T{per_turn.length}</span>
+          </div>
+        </div>
+      )}
+
+      {/* 每工具表 */}
+      {per_tool.length > 0 && (
+        <div>
+          <div className="text-xs font-semibold text-muted-foreground mb-2">工具成本</div>
+          <div className="border rounded-lg overflow-hidden">
+            <table className="w-full text-xs">
+              <thead className="bg-muted/30 text-[10px] text-muted-foreground">
+                <tr>
+                  <th className="text-left px-2 py-1.5 font-medium">工具</th>
+                  <th className="text-right px-2 py-1.5 font-medium">次数</th>
+                  <th className="text-right px-2 py-1.5 font-medium">输入</th>
+                  <th className="text-right px-2 py-1.5 font-medium">输出</th>
+                  <th className="text-right px-2 py-1.5 font-medium">缓存读</th>
+                  <th className="text-right px-2 py-1.5 font-medium">成本</th>
+                </tr>
+              </thead>
+              <tbody>
+                {per_tool.map((t: CostPerTool) => (
+                  <tr key={t.tool_name} className="border-t hover:bg-muted/20">
+                    <td className="px-2 py-1.5 font-mono text-[11px]">{t.tool_name}</td>
+                    <td className="px-2 py-1.5 text-right tabular-nums">{t.count}</td>
+                    <td className="px-2 py-1.5 text-right tabular-nums text-muted-foreground">{fmtTokens(t.input_tokens)}</td>
+                    <td className="px-2 py-1.5 text-right tabular-nums text-muted-foreground">{fmtTokens(t.output_tokens)}</td>
+                    <td className="px-2 py-1.5 text-right tabular-nums text-muted-foreground">{fmtTokens(t.cache_read_tokens)}</td>
+                    <td className="px-2 py-1.5 text-right tabular-nums font-medium">{fmtCost(t.estimated_cost_usd)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      <div className="text-[10px] text-muted-foreground/60 pt-1">{pricing.note}</div>
+    </div>
+  );
+}
+
+// ── 子 agent trace drawer ──
+
+function SubagentDrawer({
+  sessionId,
+  toolUseId,
+  formatTime,
+  onClose,
+}: {
+  sessionId: string;
+  toolUseId: string;
+  formatTime: (ms: number | null) => string;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex" onClick={onClose}>
+      <div className="flex-1 bg-black/40" />
+      <div
+        className="w-[700px] max-w-[80vw] bg-background border-l flex flex-col overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-4 py-3 border-b flex-shrink-0">
+          <div className="flex items-center gap-2">
+            <Network className="w-4 h-4 text-cyan-500" />
+            <span className="text-sm font-semibold">子 agent trace</span>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <div className="flex-1 overflow-auto">
+          <SubagentTracePane sessionId={sessionId} toolUseId={toolUseId} formatTime={formatTime} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SubagentTracePane({
+  sessionId,
+  toolUseId,
+  formatTime,
+}: {
+  sessionId: string;
+  toolUseId: string | null;
+  formatTime: (ms: number | null) => string;
+}) {
+  const { trace, loading } = useSubagentTrace(sessionId, toolUseId);
+
+  if (!toolUseId) {
+    return (
+      <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
+        选择左侧子 agent 查看其执行 trace
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-full text-muted-foreground">
+        <Loader2 className="w-5 h-5 animate-spin" />
+      </div>
+    );
+  }
+
+  if (!trace) {
+    return (
+      <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
+        无法加载子 agent trace
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-4 pb-20 space-y-6">
+      <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
+        <Bot className="w-3.5 h-3.5 text-cyan-500" />
+        <Badge variant="outline" className="text-[10px] h-4">{trace.agent_type || '?'}</Badge>
+        <span className="font-medium text-foreground/80">{trace.description}</span>
+      </div>
+      {trace.turns.map((turn: Turn) => (
+        <TurnDetail key={turn.turn_index} turn={turn} formatTime={formatTime} />
+      ))}
+    </div>
   );
 }
 
