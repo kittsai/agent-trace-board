@@ -15,10 +15,10 @@ from api.ws import router as ws_router
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """应用生命周期：启动 watcher。"""
-    from services.session_service import SessionService
+    from services.session_service import get_session_service
     from services.watcher import SessionWatcher
 
-    session_service = SessionService()
+    session_service = get_session_service()
     watcher = SessionWatcher(session_service=session_service)
     await watcher.start()
     app.state.watcher = watcher

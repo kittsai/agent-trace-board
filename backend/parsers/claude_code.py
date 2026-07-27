@@ -54,6 +54,17 @@ def _extract_user_text(message: dict) -> str | None:
     return None
 
 
+def _is_command_message(message: dict) -> bool:
+    """检测是否为本地命令/slash 命令(非真实用户输入)。
+
+    Claude Code 把 /clear、/model 等本地命令及其输出记为 user 消息,
+    内容以 <command-name> 或 <local-command 开头。这类消息没有 assistant
+    响应,不应触发新 turn,否则每轮成本会出现大量空 turn。
+    """
+    text = _extract_user_text(message) or ""
+    return text.startswith("<command-name>") or text.startswith("<local-command")
+
+
 # ── 工具描述映射 ──
 
 TOOL_DESCRIPTIONS = {
@@ -162,6 +173,9 @@ def _describe_step(step: dict) -> str:
         first_line = content.strip().split("\n")[0][:80]
         return f"回复: {first_line}" if first_line else "回复"
 
+    if step_type == "compact":
+        return "压缩摘要"
+
     if step_type == "system":
         return "系统事件"
 
@@ -233,6 +247,34 @@ class ClaudeCodeParser(BaseParser):
                 if entry_type == "user":
                     prompt_id = entry.get("promptId")
                     message = entry.get("message", {})
+
+                    # 压缩摘要(isCompactSummary):上下文压缩产物,不是真实用户输入。
+                    # 作为 compact step 渲染为分隔标记,不触发新 turn(否则 turn 列表虚高)。
+                    if entry.get("isCompactSummary"):
+                        steps.append({
+                            "session_id": session_id,
+                            "turn_id": None,
+                            "step_index": step_index,
+                            "type": "compact",
+                            "role": "user",
+                            "timestamp": timestamp,
+                            "duration_ms": None,
+                            "tool_name": None,
+                            "tool_input": None,
+                            "tool_output": None,
+                            "tool_use_id": None,
+                            "content": _extract_user_text(message),
+                            "content_blocks": [],
+                            "description": "压缩摘要",
+                            "input_tokens": 0,
+                            "output_tokens": 0,
+                            "cache_read_tokens": 0,
+                            "cache_creation_tokens": 0,
+                            "raw_json": line,
+                        })
+                        step_index += 1
+                        continue
+
                     content = message.get("content", [])
                     has_tool_result = any(
                         isinstance(b, dict) and b.get("type") == "tool_result"
@@ -275,13 +317,20 @@ class ClaudeCodeParser(BaseParser):
                         "input_tokens": 0,
                         "output_tokens": 0,
                         "cache_read_tokens": 0,
+                        "cache_creation_tokens": 0,
                         "raw_json": line,
                     }
                     steps.append(step)
                     step_index += 1
 
                     # Turn 边界：新 promptId → 新 Turn
-                    if not has_tool_result and prompt_id and prompt_id != current_prompt_id:
+                    # 跳过本地命令/slash 命令:它们没有 assistant 响应,不应成 turn
+                    if (
+                        not has_tool_result
+                        and prompt_id
+                        and prompt_id != current_prompt_id
+                        and not _is_command_message(message)
+                    ):
                         if turns:
                             turns[-1]["finished_at"] = timestamp
                             turns[-1]["input_tokens"] = turn_input_tokens
@@ -310,6 +359,7 @@ class ClaudeCodeParser(BaseParser):
                     msg_input = usage.get("input_tokens", 0)
                     msg_output = usage.get("output_tokens", 0)
                     msg_cache = usage.get("cache_read_input_tokens", 0)
+                    msg_cache_creation = usage.get("cache_creation_input_tokens", 0)
                     msg_model = message.get("model")
 
                     turn_input_tokens += msg_input
@@ -363,6 +413,7 @@ class ClaudeCodeParser(BaseParser):
                         "input_tokens": msg_input,
                         "output_tokens": msg_output,
                         "cache_read_tokens": msg_cache,
+                        "cache_creation_tokens": msg_cache_creation,
                         "raw_json": line,
                     })
                     step_index += 1
@@ -384,6 +435,7 @@ class ClaudeCodeParser(BaseParser):
                         "input_tokens": 0,
                         "output_tokens": 0,
                         "cache_read_tokens": 0,
+                        "cache_creation_tokens": 0,
                         "raw_json": line,
                     })
                     step_index += 1
@@ -406,6 +458,7 @@ class ClaudeCodeParser(BaseParser):
                         "input_tokens": 0,
                         "output_tokens": 0,
                         "cache_read_tokens": 0,
+                        "cache_creation_tokens": 0,
                         "raw_json": line,
                     })
                     step_index += 1
@@ -434,6 +487,7 @@ class ClaudeCodeParser(BaseParser):
         total_input = sum(s["input_tokens"] for s in steps)
         total_output = sum(s["output_tokens"] for s in steps)
         total_cache = sum(s["cache_read_tokens"] for s in steps)
+        total_cache_creation = sum(s["cache_creation_tokens"] for s in steps)
 
         project_path = _decode_project_path(Path(file_path).parent.name)
 
@@ -448,6 +502,7 @@ class ClaudeCodeParser(BaseParser):
             "total_input_tokens": total_input,
             "total_output_tokens": total_output,
             "total_cache_read_tokens": total_cache,
+            "total_cache_creation_tokens": total_cache_creation,
             "file_path": str(file_path),
         }
 
@@ -481,6 +536,33 @@ class ClaudeCodeParser(BaseParser):
         if entry_type == "user":
             prompt_id = entry.get("promptId")
             message = entry.get("message", {})
+
+            # 压缩摘要:作为 compact step,不触发新 turn
+            if entry.get("isCompactSummary"):
+                result_steps.append({
+                    "session_id": context.session_id,
+                    "turn_id": None,
+                    "step_index": context.step_index,
+                    "type": "compact",
+                    "role": "user",
+                    "timestamp": timestamp,
+                    "duration_ms": None,
+                    "tool_name": None,
+                    "tool_input": None,
+                    "tool_output": None,
+                    "tool_use_id": None,
+                    "content": _extract_user_text(message),
+                    "content_blocks": [],
+                    "description": "压缩摘要",
+                    "input_tokens": 0,
+                    "output_tokens": 0,
+                    "cache_read_tokens": 0,
+                    "cache_creation_tokens": 0,
+                    "raw_json": line,
+                })
+                context.step_index += 1
+                return result_steps
+
             has_tool_result = any(
                 isinstance(b, dict) and b.get("type") == "tool_result"
                 for b in (message.get("content", []) if isinstance(message.get("content"), list) else [])
@@ -506,14 +588,20 @@ class ClaudeCodeParser(BaseParser):
                                 "input_tokens": 0,
                                 "output_tokens": 0,
                                 "cache_read_tokens": 0,
+                                "cache_creation_tokens": 0,
                                 "raw_json": line,
                             }
                             result_steps.append(step)
                             context.step_index += 1
             else:
                 # 普通用户消息 → 新 Turn
+                # 跳过本地命令/slash 命令(无 assistant 响应,不应成 turn)
                 user_text = _extract_user_text(message)
-                if prompt_id and prompt_id != context.current_prompt_id:
+                if (
+                    prompt_id
+                    and prompt_id != context.current_prompt_id
+                    and not _is_command_message(message)
+                ):
                     context.current_prompt_id = prompt_id
                     context.current_turn_index += 1
                     context.turn_input_tokens = 0
@@ -528,6 +616,7 @@ class ClaudeCodeParser(BaseParser):
             msg_input = usage.get("input_tokens", 0)
             msg_output = usage.get("output_tokens", 0)
             msg_cache = usage.get("cache_read_input_tokens", 0)
+            msg_cache_creation = usage.get("cache_creation_input_tokens", 0)
             msg_model = message.get("model")
 
             context.turn_input_tokens += msg_input
@@ -582,6 +671,7 @@ class ClaudeCodeParser(BaseParser):
                 "input_tokens": msg_input,
                 "output_tokens": msg_output,
                 "cache_read_tokens": msg_cache,
+                "cache_creation_tokens": msg_cache_creation,
                 "raw_json": line,
             })
             context.step_index += 1
@@ -602,6 +692,7 @@ class ClaudeCodeParser(BaseParser):
                 "input_tokens": 0,
                 "output_tokens": 0,
                 "cache_read_tokens": 0,
+                "cache_creation_tokens": 0,
                 "raw_json": line,
             })
             context.step_index += 1
@@ -623,6 +714,7 @@ class ClaudeCodeParser(BaseParser):
                 "input_tokens": 0,
                 "output_tokens": 0,
                 "cache_read_tokens": 0,
+                "cache_creation_tokens": 0,
                 "raw_json": line,
             })
             context.step_index += 1
