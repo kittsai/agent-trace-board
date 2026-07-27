@@ -13,8 +13,8 @@ export function useWebSocket(url: string | null, onEvent: (event: WSEvent) => vo
     if (!url) return;
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    // 开发模式直接连后端 8080，生产模式走同域
-    const host = window.location.port === '5173' ? `${window.location.hostname}:8080` : window.location.host;
+    // 开发模式直接连后端 18080，生产模式走同域
+    const host = window.location.port === '5173' ? `${window.location.hostname}:18080` : window.location.host;
     const wsUrl = url.startsWith('ws') ? url : `${protocol}//${host}${url}`;
 
     const ws = new WebSocket(wsUrl);
