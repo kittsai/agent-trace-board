@@ -9,6 +9,10 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from api.sessions import router as sessions_router
 from api.traces import router as traces_router
+from api.file_history import router as file_history_router
+from api.todos import router as todos_router
+from api.cost import router as cost_router
+from api.subagents import router as subagents_router
 from api.ws import router as ws_router
 
 
@@ -45,6 +49,10 @@ app.add_middleware(
 
 app.include_router(sessions_router, prefix="/api")
 app.include_router(traces_router, prefix="/api")
+app.include_router(file_history_router, prefix="/api")
+app.include_router(todos_router, prefix="/api")
+app.include_router(cost_router, prefix="/api")
+app.include_router(subagents_router, prefix="/api")
 app.include_router(ws_router)
 
 

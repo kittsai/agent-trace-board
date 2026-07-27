@@ -1,6 +1,6 @@
 /** API 客户端 */
 
-import type { Session, Step, Stats, Turn } from '../types';
+import type { Session, Step, Stats, Turn, FileChange, FileChangeDiff, TodoTask, CostAnalysis, SubagentSummary, SubagentTrace } from '../types';
 
 const BASE = '/api';
 
@@ -57,4 +57,41 @@ export const tracesAPI = {
 
   getStats: (sessionId: string) =>
     fetchJSON<Stats>(`${BASE}/sessions/${sessionId}/stats`),
+};
+
+// File history
+export const fileHistoryAPI = {
+  list: (sessionId: string) =>
+    fetchJSON<{ items: FileChange[]; total: number }>(
+      `${BASE}/sessions/${sessionId}/file-changes`
+    ),
+
+  getDiff: (sessionId: string, messageId: string) =>
+    fetchJSON<FileChangeDiff>(
+      `${BASE}/sessions/${sessionId}/file-changes/${messageId}`
+    ),
+};
+
+// Todos
+export const todosAPI = {
+  list: (sessionId: string) =>
+    fetchJSON<{ items: TodoTask[]; total: number }>(
+      `${BASE}/sessions/${sessionId}/todos`
+    ),
+};
+
+// Cost analysis
+export const costAPI = {
+  get: (sessionId: string) =>
+    fetchJSON<CostAnalysis>(`${BASE}/sessions/${sessionId}/cost`),
+};
+
+// Subagents
+export const subagentsAPI = {
+  list: (sessionId: string) =>
+    fetchJSON<{ items: SubagentSummary[]; total: number }>(
+      `${BASE}/sessions/${sessionId}/subagents`
+    ),
+  getTrace: (sessionId: string, toolUseId: string) =>
+    fetchJSON<SubagentTrace>(`${BASE}/sessions/${sessionId}/subagents/${toolUseId}`),
 };

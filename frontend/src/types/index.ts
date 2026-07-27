@@ -72,6 +72,120 @@ export interface Stats {
   type_counts: Record<string, number>;
 }
 
+export interface FileChange {
+  session_id: string;
+  message_id: string;
+  step_index: number | null;
+  tracking_path: string | null;
+  backup_file_name: string | null;
+  version: number | null;
+  backup_time: string | null;
+  timestamp: number | null;
+  is_new_file: boolean;
+}
+
+export interface FileChangeDiff {
+  session_id: string;
+  message_id: string;
+  tracking_path: string | null;
+  is_new_file: boolean;
+  diff: string;
+}
+
+export interface TodoEvent {
+  event_type: 'created' | 'status_changed';
+  step_index: number | null;
+  timestamp: number | null;
+  old_status?: string;
+  status: string;
+}
+
+export interface TodoTask {
+  session_id: string;
+  task_id: string;
+  subject: string;
+  description: string;
+  active_form: string;
+  created_step_index: number | null;
+  created_timestamp: number | null;
+  final_status: string;
+  events: TodoEvent[];
+}
+
+export interface CostTotals {
+  input_tokens: number;
+  output_tokens: number;
+  cache_read_tokens: number;
+  cache_creation_tokens: number;
+  total_tokens: number;
+  estimated_cost_usd: number;
+}
+
+export interface CostPricing {
+  tier: string;
+  tiers_used: string[];
+  input_per_mtok: number;
+  output_per_mtok: number;
+  cache_read_per_mtok: number;
+  cache_creation_per_mtok: number;
+  note: string;
+}
+
+export interface CostPerTurn {
+  turn_index: number;
+  input_tokens: number;
+  output_tokens: number;
+  cache_read_tokens: number;
+  cache_creation_tokens: number;
+  estimated_cost_usd: number;
+}
+
+export interface CostPerTool {
+  tool_name: string;
+  count: number;
+  input_tokens: number;
+  output_tokens: number;
+  cache_read_tokens: number;
+  cache_creation_tokens: number;
+  estimated_cost_usd: number;
+}
+
+export interface CacheEfficiency {
+  fresh_input_ratio: number;
+  cache_read_ratio: number;
+  cache_creation_ratio: number;
+  output_ratio: number;
+}
+
+export interface SubagentSummary {
+  session_id: string;
+  agent_id: string;
+  agent_type: string | null;
+  description: string | null;
+  tool_use_id: string | null;
+  spawn_depth: number;
+  step_index: number | null;
+  has_trace: boolean;
+}
+
+export interface SubagentTrace {
+  session_id: string;
+  tool_use_id: string;
+  agent_id: string;
+  agent_type: string | null;
+  description: string | null;
+  turns: Turn[];
+}
+
+export interface CostAnalysis {
+  session_id: string;
+  totals: CostTotals;
+  pricing: CostPricing;
+  per_turn: CostPerTurn[];
+  per_tool: CostPerTool[];
+  cache_efficiency: CacheEfficiency;
+}
+
 export interface PaginatedResponse<T> {
   items: T[];
   total: number;
