@@ -13,6 +13,7 @@ from api.file_history import router as file_history_router
 from api.todos import router as todos_router
 from api.cost import router as cost_router
 from api.subagents import router as subagents_router
+from api.knowledge import router as knowledge_router
 from api.ws import router as ws_router
 
 
@@ -53,6 +54,7 @@ app.include_router(file_history_router, prefix="/api")
 app.include_router(todos_router, prefix="/api")
 app.include_router(cost_router, prefix="/api")
 app.include_router(subagents_router, prefix="/api")
+app.include_router(knowledge_router, prefix="/api")
 app.include_router(ws_router)
 
 
