@@ -23,6 +23,7 @@ import remarkGfm from 'remark-gfm';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { diffLines } from 'diff';
+import { Knowledge } from './pages/Knowledge';
 import type { Session, Step, Turn, ContentBlock, WSEvent, FileChange, FileChangeDiff, TodoTask, CostAnalysis, CostPerTurn, CostPerTool } from './types';
 
 const ImagePreviewContext = createContext<(src: string) => void>(() => {});
@@ -39,6 +40,7 @@ function App() {
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [detailTab, setDetailTab] = useState<'conversation' | 'files' | 'todos' | 'cost'>('conversation');
   const [subagentDrawerToolUseId, setSubagentDrawerToolUseId] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState<'sessions' | 'knowledge'>('sessions');
 
   // 复制 session ID
   const copySessionId = useCallback(() => {
@@ -283,6 +285,10 @@ function App() {
           <div className="flex items-center gap-2">
             <img src="/favicon.svg" alt="Logo" className="w-7 h-7" />
             <span className="font-bold text-sm">Agent Trace Board</span>
+            <nav className="flex gap-1 ml-2">
+              <button className={`px-2 py-1 text-xs rounded ${currentPage === 'sessions' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-100'}`} onClick={() => setCurrentPage('sessions')}>Sessions</button>
+              <button className={`px-2 py-1 text-xs rounded ${currentPage === 'knowledge' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-100'}`} onClick={() => setCurrentPage('knowledge')}>Knowledge</button>
+            </nav>
           </div>
         </div>
         <div className="p-2 border-b space-y-1.5">
@@ -337,7 +343,9 @@ function App() {
 
       {/* 右栏 */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {!selectedSession ? (
+        {currentPage === 'knowledge' ? (
+          <Knowledge />
+        ) : !selectedSession ? (
           <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">
             选择 session 查看执行过程
           </div>
