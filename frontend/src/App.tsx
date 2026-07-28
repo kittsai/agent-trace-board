@@ -482,6 +482,7 @@ function App() {
           </>
         )}
       </div>
+      </div>
       <Toaster />
 
       {/* 图片预览弹窗 */}
