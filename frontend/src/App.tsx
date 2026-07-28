@@ -17,6 +17,7 @@ import {
   Bot, User, Brain, Zap, Check, Search, Copy, Image as ImageIcon,
   ChevronRight, ChevronDown, Terminal, FileText, FileEdit,
   FolderSearch, FileSearch, Globe, Loader2, MessageSquare, FileDiff, ListTodo, DollarSign, Archive, Network, X,
+  Sun, Moon,
 } from 'lucide-react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -41,6 +42,16 @@ function App() {
   const [detailTab, setDetailTab] = useState<'conversation' | 'files' | 'todos' | 'cost'>('conversation');
   const [subagentDrawerToolUseId, setSubagentDrawerToolUseId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState<'sessions' | 'knowledge'>('sessions');
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    const saved = localStorage.getItem('theme');
+    return (saved === 'dark' || saved === 'light') ? saved : 'light';
+  });
+
+  // 主题切换
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', theme === 'dark');
+    localStorage.setItem('theme', theme);
+  }, [theme]);
 
   // 复制 session ID
   const copySessionId = useCallback(() => {
@@ -280,209 +291,250 @@ function App() {
     <SubagentJumpContext.Provider value={handleOpenSubagent}>
     <div className="h-screen flex flex-col bg-background text-foreground overflow-hidden">
       {/* 顶部栏 */}
-      <header className="h-10 flex-shrink-0 border-b flex items-center px-4 gap-3">
+      <header className="h-10 flex-shrink-0 border-b bg-card flex items-center px-4 gap-4">
         <div className="flex items-center gap-2">
-          <img src="/favicon.svg" alt="Logo" className="w-5 h-5" />
-          <span className="font-bold text-sm">Agent Trace Board</span>
+          <Brain className="w-5 h-5 text-purple-500" />
+          <span className="font-bold text-sm">Agent Insight Board</span>
         </div>
         <nav className="flex gap-1">
-          <button className={`px-2 py-1 text-xs rounded ${currentPage === 'sessions' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-100'}`} onClick={() => setCurrentPage('sessions')}>Sessions</button>
-          <button className={`px-2 py-1 text-xs rounded ${currentPage === 'knowledge' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-100'}`} onClick={() => setCurrentPage('knowledge')}>Knowledge</button>
+          <button
+            className={`px-2.5 py-1 text-xs rounded transition-colors ${
+              currentPage === 'sessions'
+                ? 'bg-primary text-primary-foreground'
+                : 'text-muted-foreground hover:bg-accent'
+            }`}
+            onClick={() => setCurrentPage('sessions')}
+          >
+            Sessions
+          </button>
+          <button
+            className={`px-2.5 py-1 text-xs rounded transition-colors ${
+              currentPage === 'knowledge'
+                ? 'bg-primary text-primary-foreground'
+                : 'text-muted-foreground hover:bg-accent'
+            }`}
+            onClick={() => setCurrentPage('knowledge')}
+          >
+            Knowledge
+          </button>
         </nav>
+        <div className="ml-auto flex items-center gap-3">
+          {/* Platform 选择器 */}
+          <div className="flex items-center gap-1.5 px-2 py-1 rounded border text-xs">
+            <Bot className="w-3.5 h-3.5 text-muted-foreground" />
+            <select
+              value={platform}
+              onChange={(e) => { setPlatform(e.target.value); setSelectedSession(null); }}
+              className="bg-transparent border-none text-xs focus:outline-none cursor-pointer"
+            >
+              <option value="claude-code">Claude Code</option>
+            </select>
+          </div>
+          {/* 主题切换 */}
+          <button
+            onClick={() => setTheme(t => t === 'light' ? 'dark' : 'light')}
+            className="p-1.5 rounded hover:bg-muted transition-colors"
+          >
+            {theme === 'light' ? (
+              <Moon className="w-4 h-4 text-muted-foreground" />
+            ) : (
+              <Sun className="w-4 h-4 text-yellow-500" />
+            )}
+          </button>
+        </div>
       </header>
 
       {/* 主内容区域 */}
-      <div className="flex-1 flex overflow-hidden">
+      {currentPage === 'knowledge' ? (
+        <Knowledge onJumpToSession={(sessionId) => {
+          setSelectedSession(sessionId);
+          setCurrentPage('sessions');
+        }} />
+      ) : (
+      <div className="flex-1 flex overflow-hidden p-4 gap-4">
         {/* 左栏：Session 列表 */}
-        <div className="w-64 flex-shrink-0 border-r flex flex-col overflow-hidden">
-        <div className="p-2 border-b space-y-1.5">
-          <h2 className="text-xs font-semibold">Sessions</h2>
-          <select
-            value={platform}
-            onChange={(e) => { setPlatform(e.target.value); setSelectedSession(null); }}
-            className="flex h-7 w-full rounded-md border border-input bg-background px-2 text-xs ring-offset-background focus:outline-none focus:ring-1 focus:ring-ring"
-          >
-            <option value="claude-code">Claude Code</option>
-          </select>
-          <div className="relative">
-            <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground" />
-            <Input
-              placeholder="搜索..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="h-7 pl-6 text-xs"
-            />
+        <div className="w-72 flex-shrink-0 bg-card rounded-lg border flex flex-col overflow-hidden">
+          <div className="p-3 border-b">
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-sm font-semibold text-card-foreground">Sessions</h2>
+              <span className="text-[10px] text-muted-foreground">{sessions.length} 个</span>
+            </div>
+            <div className="relative">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground" />
+              <Input
+                placeholder="搜索..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="h-7 pl-6 text-xs"
+              />
+            </div>
           </div>
-        </div>
-        <ScrollArea className="flex-1 [&>[data-slot=scroll-area-scrollbar]]:hidden">
-          <div className="p-1">
+          <div className="flex-1 overflow-auto p-2 space-y-1">
             {sessions.length === 0 ? (
-              <div className="text-center text-muted-foreground text-[11px] py-6">没有 session</div>
+              <div className="text-center text-muted-foreground text-xs py-6">没有 session</div>
             ) : (
               sessions.map((s: Session) => (
                 <button
                   key={s.id}
                   onClick={() => setSelectedSession(s.id)}
-                  className={`w-full text-left px-2.5 py-1.5 rounded text-xs transition-colors ${
+                  className={`w-full text-left px-2.5 py-2 rounded-lg text-xs transition-colors ${
                     selectedSession === s.id
-                      ? 'bg-accent text-accent-foreground'
-                      : 'hover:bg-muted'
+                      ? 'bg-accent border border-accent-foreground/20'
+                      : 'hover:bg-accent/50 border border-transparent'
                   }`}
                 >
                   <div className="flex items-center gap-1.5">
                     <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
                       s.status === 'active' ? 'bg-green-500 animate-pulse' : 'bg-muted-foreground/30'
                     }`} />
-                    <span className="font-medium truncate">{s.title || s.id.slice(0, 8) + '...'}</span>
+                    <span className="font-medium text-card-foreground truncate">{s.title || s.id.slice(0, 8) + '...'}</span>
                   </div>
-                  <div className="text-muted-foreground ml-3 text-[10px]">
+                  <div className="text-muted-foreground ml-3 text-[10px] mt-0.5">
                     {s.project_path?.split('/').pop()} · {formatTime(s.started_at)}
                   </div>
                 </button>
               ))
             )}
           </div>
-        </ScrollArea>
-      </div>
+        </div>
 
-      {/* 右栏 */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {currentPage === 'knowledge' ? (
-          <Knowledge />
-        ) : !selectedSession ? (
-          <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">
-            选择 session 查看执行过程
-          </div>
-        ) : (
-          <>
-            {/* 共享顶部栏 */}
-            {currentSession && (
-              <div className="border-b bg-muted/30 px-4 py-2">
-                <div className="flex items-center gap-2">
-                  <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-                    currentSession.status === 'active' ? 'bg-green-500 animate-pulse' : 'bg-muted-foreground/30'
-                  }`} />
-                  <span className="font-medium text-xs truncate">
-                    {currentSession.title || currentSession.id.slice(0, 8) + '...'}
-                  </span>
-                  <span className="text-muted-foreground text-[10px] ml-2">
-                    {currentSession.project_path?.split('/').pop()}
-                  </span>
-                </div>
-                {stats && (
-                  <div className="flex items-center gap-2 text-[11px] text-muted-foreground mt-0.5 ml-3.5">
-                    <span>{stats.total_turns} 轮对话</span>
-                    <span>{stats.total_steps} 步</span>
-                    <span>{((stats.total_input_tokens + stats.total_output_tokens) / 1000).toFixed(1)}k tokens</span>
+        {/* 右栏 */}
+        <div className="flex-1 bg-card rounded-lg border flex flex-col overflow-hidden">
+          {!selectedSession ? (
+            <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">
+              选择 session 查看执行过程
+            </div>
+          ) : (
+            <>
+              {/* Session 信息头部 */}
+              {currentSession && (
+                <div className="p-3 border-b">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                        currentSession.status === 'active' ? 'bg-green-500 animate-pulse' : 'bg-muted-foreground/30'
+                      }`} />
+                      <h3 className="text-sm font-semibold text-card-foreground truncate">
+                        {currentSession.title || currentSession.id.slice(0, 8) + '...'}
+                      </h3>
+                      <span className="text-[10px] text-muted-foreground">
+                        {currentSession.project_path?.split('/').pop()}
+                      </span>
+                    </div>
                     <button
                       onClick={copySessionId}
-                      className="flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors"
+                      className="text-[10px] text-muted-foreground hover:text-foreground flex items-center gap-1"
                     >
                       <Copy className="w-3 h-3" />
-                      <span className="text-[10px]">复制 sessionId</span>
+                      复制 ID
                     </button>
                   </div>
-                )}
+                  {stats && (
+                    <div className="flex items-center gap-3 text-[10px] text-muted-foreground mt-1.5 ml-4">
+                      <span>{stats.total_turns} 轮对话</span>
+                      <span>{stats.total_steps} 步</span>
+                      <span>{((stats.total_input_tokens + stats.total_output_tokens) / 1000).toFixed(1)}k tokens</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Tab 切换 */}
+              <div className="border-b px-3 flex items-center gap-1">
+                <TabButton
+                  active={detailTab === 'conversation'}
+                  onClick={() => setDetailTab('conversation')}
+                  icon={<MessageSquare className="w-3.5 h-3.5" />}
+                  label="对话"
+                />
+                <TabButton
+                  active={detailTab === 'files'}
+                  onClick={() => setDetailTab('files')}
+                  icon={<FileDiff className="w-3.5 h-3.5" />}
+                  label="文件变更"
+                />
+                <TabButton
+                  active={detailTab === 'todos'}
+                  onClick={() => setDetailTab('todos')}
+                  icon={<ListTodo className="w-3.5 h-3.5" />}
+                  label="任务"
+                />
+                <TabButton
+                  active={detailTab === 'cost'}
+                  onClick={() => setDetailTab('cost')}
+                  icon={<DollarSign className="w-3.5 h-3.5" />}
+                  label="成本"
+                />
               </div>
-            )}
 
-            {/* Tab 切换 */}
-            <div className="border-b px-3 py-1.5 flex items-center gap-1 bg-muted/20">
-              <TabButton
-                active={detailTab === 'conversation'}
-                onClick={() => setDetailTab('conversation')}
-                icon={<MessageSquare className="w-3.5 h-3.5" />}
-                label="对话"
-              />
-              <TabButton
-                active={detailTab === 'files'}
-                onClick={() => setDetailTab('files')}
-                icon={<FileDiff className="w-3.5 h-3.5" />}
-                label="文件变更"
-              />
-              <TabButton
-                active={detailTab === 'todos'}
-                onClick={() => setDetailTab('todos')}
-                icon={<ListTodo className="w-3.5 h-3.5" />}
-                label="任务"
-              />
-              <TabButton
-                active={detailTab === 'cost'}
-                onClick={() => setDetailTab('cost')}
-                icon={<DollarSign className="w-3.5 h-3.5" />}
-                label="成本"
-              />
-            </div>
+              <div className="flex-1 flex overflow-hidden">
+              {detailTab === 'conversation' ? (
+              <>
+              {/* 中栏：Turn 列表 */}
+              <div className="w-[380px] flex-shrink-0 border-r flex flex-col overflow-hidden">
+                <div ref={turnListRef} className="flex-1 overflow-auto [&::-webkit-scrollbar]:hidden">
+                  <div className="p-2 space-y-1">
+                    {turns.length === 0 ? (
+                      <div className="text-center text-muted-foreground text-xs py-8">没有数据</div>
+                    ) : (
+                      turns.map((turn: Turn) => (
+                        <TurnRow
+                          key={turn.turn_index}
+                          turn={turn}
+                          isSelected={selectedTurn?.turn_index === turn.turn_index}
+                          isActive={activeTurnId === turn.turn_index}
+                          onClick={() => handleTurnClick(turn)}
+                          formatTime={formatTime}
+                          formatDuration={formatDuration}
+                        />
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
 
-            <div className="flex-1 flex overflow-hidden">
-            {detailTab === 'conversation' ? (
-            <>
-            {/* 中栏：Turn 列表 */}
-            <div className="w-[380px] flex-shrink-0 border-r flex flex-col overflow-hidden">
-
-              {/* Turn 列表 */}
-              <div ref={turnListRef} className="flex-1 overflow-auto [&::-webkit-scrollbar]:hidden">
-                <div className="p-2 space-y-1.5">
+              {/* 右栏：所有 Turn 完整对话 */}
+              <div ref={detailRef} className="flex-1 overflow-auto">
+                <div className="p-5 pb-20 space-y-6">
                   {turns.length === 0 ? (
-                    <div className="text-center text-muted-foreground text-xs py-8">没有数据</div>
+                    <div className="text-center text-muted-foreground text-sm mt-20 flex flex-col items-center gap-2">
+                      {selectedSession && turnsLoading ? (
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                      ) : null}
+                      {selectedSession ? '加载中...' : '选择左侧对话查看详情'}
+                    </div>
                   ) : (
                     turns.map((turn: Turn) => (
-                      <TurnRow
+                      <TurnDetailBlock
                         key={turn.turn_index}
                         turn={turn}
-                        isSelected={selectedTurn?.turn_index === turn.turn_index}
-                        isActive={activeTurnId === turn.turn_index}
-                        onClick={() => handleTurnClick(turn)}
                         formatTime={formatTime}
-                        formatDuration={formatDuration}
+                        onVisible={handleTurnVisible}
                       />
                     ))
                   )}
                 </div>
               </div>
-            </div>
-
-            {/* 右栏：所有 Turn 完整对话 */}
-            <div ref={detailRef} className="flex-1 overflow-auto">
-              <div className="p-5 pb-20 space-y-6">
-                {turns.length === 0 ? (
-                  <div className="text-center text-muted-foreground text-sm mt-20 flex flex-col items-center gap-2">
-                    {selectedSession && turnsLoading ? (
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                    ) : null}
-                    {selectedSession ? '加载中...' : '选择左侧对话查看详情'}
-                  </div>
-                ) : (
-                  turns.map((turn: Turn) => (
-                    <TurnDetailBlock
-                      key={turn.turn_index}
-                      turn={turn}
-                      formatTime={formatTime}
-                      onVisible={handleTurnVisible}
-                    />
-                  ))
-                )}
+              </>
+              ) : detailTab === 'files' ? (
+                <FileChangesView
+                  sessionId={selectedSession}
+                  formatTime={formatTime}
+                />
+              ) : detailTab === 'todos' ? (
+                <TodosView
+                  sessionId={selectedSession}
+                  formatTime={formatTime}
+                />
+              ) : (
+                <CostView sessionId={selectedSession} />
+              )}
               </div>
-            </div>
             </>
-            ) : detailTab === 'files' ? (
-              <FileChangesView
-                sessionId={selectedSession}
-                formatTime={formatTime}
-              />
-            ) : detailTab === 'todos' ? (
-              <TodosView
-                sessionId={selectedSession}
-                formatTime={formatTime}
-              />
-            ) : (
-              <CostView sessionId={selectedSession} />
-            )}
-            </div>
-          </>
-        )}
+          )}
+        </div>
       </div>
-      </div>
+      )}
       <Toaster />
 
       {/* 图片预览弹窗 */}
@@ -658,51 +710,134 @@ const TurnDetailBlock = memo(function TurnDetailBlock({
   );
 });
 
+// ── 用户消息内容解析 ──
+
+function UserMessageContent({ content }: { content: string }) {
+  // 检查是否包含 XML 格式的命令消息
+  const commandMatch = content.match(/<command-message>(.*?)<\/command-message>[\s\S]*?<command-name>(.*?)<\/command-name>[\s\S]*?<command-args>(.*?)<\/command-args>/);
+
+  if (commandMatch) {
+    const [, , commandName, commandArgs] = commandMatch;
+    return (
+      <div className="space-y-1">
+        <div className="flex items-center gap-1.5 text-xs">
+          <Terminal className="w-3.5 h-3.5 text-muted-foreground" />
+          <span className="font-mono text-muted-foreground">{commandName}</span>
+        </div>
+        {commandArgs && (
+          <div className="text-sm text-foreground">{commandArgs}</div>
+        )}
+      </div>
+    );
+  }
+
+  // 普通消息
+  return <>{content}</>;
+}
+
 // ── Turn 完整对话详情 ──
 
 function TurnDetail({ turn, formatTime }: { turn: Turn; formatTime: (ms: number | null) => string }) {
+  // 将 steps 分组为连续的 user/assistant 块
+  const groups = useMemo(() => {
+    const result: Array<{ type: 'user' | 'assistant'; steps: Step[] }> = [];
+    let currentGroup: { type: 'user' | 'assistant'; steps: Step[] } | null = null;
+
+    for (const step of turn.steps) {
+      const stepType = step.role === 'user' || step.type === 'user' ? 'user' : 'assistant';
+
+      if (!currentGroup || currentGroup.type !== stepType) {
+        currentGroup = { type: stepType, steps: [step] };
+        result.push(currentGroup);
+      } else {
+        currentGroup.steps.push(step);
+      }
+    }
+
+    return result;
+  }, [turn.steps]);
+
+  // 获取第一个 step 的时间作为 user 消息时间
+  const firstStepTime = turn.steps[0]?.timestamp;
+
   return (
-    <div className="space-y-4">
-      {/* Turn 头部信息 */}
-      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-        <Badge variant="outline">
-          <User className="w-3 h-3 mr-1" /> Turn #{turn.turn_index + 1}
-        </Badge>
-        <span>{formatTime(turn.started_at)}</span>
-        {turn.input_tokens > 0 && <span>输入: {turn.input_tokens.toLocaleString()}</span>}
-        {turn.output_tokens > 0 && <span>输出: {turn.output_tokens.toLocaleString()}</span>}
+    <div className="space-y-3">
+      {/* Turn 分隔线 */}
+      <div className="flex items-center gap-2 text-[10px] text-muted-foreground py-2 border-t">
+        <span className="font-medium">Turn #{turn.turn_index + 1}</span>
+        {turn.input_tokens > 0 && (
+          <>
+            <span>·</span>
+            <span>输入 {turn.input_tokens.toLocaleString()}</span>
+          </>
+        )}
+        {turn.output_tokens > 0 && (
+          <>
+            <span>·</span>
+            <span>输出 {turn.output_tokens.toLocaleString()}</span>
+          </>
+        )}
       </div>
 
-      {/* 用户消息 */}
-      {turn.user_message && (() => {
-        // 找到第一个 user step，渲染其 content_blocks（含图片）
-        const userStep = turn.steps.find(s => s.role === 'user' || s.type === 'user');
-        // 过滤掉 text 块（已由 turn.user_message 展示），只保留图片等
-        const userBlocks = (userStep?.content_blocks || []).filter(b => b.type !== 'text');
-        return (
-          <div data-turn-message={turn.turn_index} className="scroll-mt-16 border-l-2 border-l-green-400 pl-3 py-2">
-            <div className="flex items-center gap-1.5 mb-1">
-              <User className="w-3.5 h-3.5 text-green-600" />
-              <span className="text-xs font-medium">User</span>
+      {/* User 消息气泡 - 在右边，先显示 */}
+      {turn.user_message && (
+        <div data-turn-message={turn.turn_index} className="scroll-mt-16 flex justify-end">
+          <div className="max-w-[85%]">
+            <div className="flex items-center gap-1.5 mb-1 justify-end">
+              <span className="text-[10px] text-muted-foreground">{firstStepTime ? formatTime(firstStepTime) : ''}</span>
+              <span className="text-[10px] font-medium text-green-600">User</span>
+              <div className="w-5 h-5 rounded-full bg-green-100 flex items-center justify-center">
+                <User className="w-3 h-3 text-green-600" />
+              </div>
             </div>
-            <div className="text-sm whitespace-pre-wrap">{turn.user_message}</div>
-            {userBlocks.length > 0 && (
-              <div className="mt-2 space-y-2">
-                {userBlocks.map((block, i) => (
-                  <ContentBlockDetail key={i} block={block} />
+            <div className="bg-card border border-border rounded-2xl rounded-tr-sm px-3 py-2 text-sm whitespace-pre-wrap shadow-sm">
+              <UserMessageContent content={turn.user_message} />
+            </div>
+            {/* 图片等附件 */}
+            {(() => {
+              const userStep = turn.steps.find(s => s.role === 'user' || s.type === 'user');
+              const userBlocks = (userStep?.content_blocks || []).filter(b => b.type !== 'text');
+              if (userBlocks.length === 0) return null;
+              return (
+                <div className="mt-2 space-y-2 mr-6">
+                  {userBlocks.map((block, i) => (
+                    <ContentBlockDetail key={i} block={block} />
+                  ))}
+                </div>
+              );
+            })()}
+          </div>
+        </div>
+      )}
+
+      {/* Assistant 消息气泡 - 在左边，后显示 */}
+      {groups.filter(g => g.type === 'assistant').map((group, groupIndex) => {
+        const lastStep = group.steps[group.steps.length - 1];
+        const model = group.steps.find(s => s.model)?.model;
+        return (
+          <div key={groupIndex} className="flex justify-start">
+            <div className="max-w-[85%]">
+              <div className="flex items-center gap-1.5 mb-1">
+                <div className="w-5 h-5 rounded-full bg-blue-100 flex items-center justify-center">
+                  <Bot className="w-3 h-3 text-blue-600" />
+                </div>
+                <span className="text-[10px] font-medium text-blue-600">Assistant</span>
+                <span className="text-[10px] text-muted-foreground">{lastStep ? formatTime(lastStep.timestamp) : ''}</span>
+                {model && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-100 text-purple-600 font-mono">
+                    {model}
+                  </span>
+                )}
+              </div>
+              <div className="bg-card border border-border rounded-2xl rounded-tl-sm px-3 py-2 shadow-sm">
+                {group.steps.map((step) => (
+                  <StepBlock key={step.id} step={step} formatTime={formatTime} compact />
                 ))}
               </div>
-            )}
+            </div>
           </div>
         );
-      })()}
-
-      {/* 所有 Steps */}
-      <div className="space-y-3">
-        {turn.steps.map((step) => (
-          <StepBlock key={step.id} step={step} formatTime={formatTime} />
-        ))}
-      </div>
+      })}
     </div>
   );
 }
@@ -785,7 +920,7 @@ function formatDurationStatic(ms: number | null): string {
 
 // ── 单个 Step 块（用于 Turn 详情内）──
 
-function StepBlock({ step, formatTime }: { step: Step; formatTime: (ms: number | null) => string }) {
+function StepBlock({ step, formatTime, compact = false }: { step: Step; formatTime: (ms: number | null) => string; compact?: boolean }) {
   const role = step.role || step.type;
   const blocks = step.content_blocks || [];
 
@@ -819,6 +954,27 @@ function StepBlock({ step, formatTime }: { step: Step; formatTime: (ms: number |
 
   // 检查是否为系统元数据事件
   const systemEvent = parseSystemEvent(step.content);
+
+  // 紧凑模式（气泡内）：只显示工具调用和文本内容
+  if (compact) {
+    return (
+      <div className="py-1">
+        {/* 内容块 */}
+        <div className="space-y-1">
+          {blocks.map((block: ContentBlock, i: number) => (
+            <ContentBlockDetail key={i} block={block} />
+          ))}
+        </div>
+
+        {/* 系统事件渲染 */}
+        {systemEvent && (
+          <div className="mt-1">
+            {systemEvent.element}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="border-l-2 border-l-blue-400 pl-3 py-1">
@@ -902,7 +1058,7 @@ const TOOL_STYLES: Record<string, { border: string; icon: ReactNode; lang: strin
 
 function ToolUseBlock({ name, input, toolUseId }: { name: string; input: Record<string, unknown> | undefined; toolUseId?: string }) {
   const jumpToSubagent = useContext(SubagentJumpContext);
-  const style = TOOL_STYLES[name] || { border: 'border-l-gray-400', icon: <Zap className="w-3.5 h-3.5 text-gray-500" />, lang: 'json' };
+  const style = TOOL_STYLES[name] || { border: 'border-l-muted-foreground', icon: <Zap className="w-3.5 h-3.5 text-muted-foreground" />, lang: 'json' };
 
   // 提取主要展示内容
   const renderMainContent = () => {
@@ -1497,7 +1653,7 @@ function UnifiedDiff({ diff }: { diff: FileChangeDiff }) {
 // ── 任务视图 ──
 
 const STATUS_STYLES: Record<string, { label: string; cls: string; dot: string }> = {
-  pending: { label: '待处理', cls: 'bg-gray-100 text-gray-600', dot: 'bg-gray-400' },
+  pending: { label: '待处理', cls: 'bg-muted text-muted-foreground', dot: 'bg-muted-foreground/50' },
   in_progress: { label: '进行中', cls: 'bg-blue-100 text-blue-700', dot: 'bg-blue-500' },
   completed: { label: '已完成', cls: 'bg-green-100 text-green-700', dot: 'bg-green-500' },
   deleted: { label: '已删除', cls: 'bg-red-100 text-red-700', dot: 'bg-red-500' },

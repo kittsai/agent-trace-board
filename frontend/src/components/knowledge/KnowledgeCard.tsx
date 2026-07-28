@@ -5,12 +5,22 @@
 import { Badge } from '@/components/ui/badge';
 import type { KnowledgeItem } from '@/types';
 
+// Mock session 标题映射
+const SESSION_TITLES: Record<string, string> = {
+  'session-abc123': '优化列表渲染性能',
+  'session-def456': '数据获取方案讨论',
+  'session-ghi789': 'TypeScript 配置优化',
+  'session-jkl012': 'WebSocket 重连机制',
+  'session-mno345': '样式框架选型',
+};
+
 interface KnowledgeCardProps {
   item: KnowledgeItem;
   onApprove: (id: string) => void;
   onReject: (id: string) => void;
   onEdit: (item: KnowledgeItem) => void;
   onViewSources: (item: KnowledgeItem) => void;
+  onSessionClick?: (sessionId: string) => void;
 }
 
 const TYPE_LABELS: Record<string, string> = {
@@ -39,9 +49,10 @@ export function KnowledgeCard({
   onReject,
   onEdit,
   onViewSources,
+  onSessionClick,
 }: KnowledgeCardProps) {
   return (
-    <div className="p-3 border rounded-lg hover:border-gray-300">
+    <div className="p-3 border rounded-lg hover:border-border">
       <div className="flex items-start justify-between">
         <div className="flex-1">
           {/* 标签 */}
@@ -50,7 +61,7 @@ export function KnowledgeCard({
               {STATUS_LABELS[item.status]}
             </Badge>
             <Badge variant="outline">{TYPE_LABELS[item.type]}</Badge>
-            <span className="text-[10px] text-gray-400">
+            <span className="text-[10px] text-muted-foreground">
               置信度 {Math.round(item.confidence * 100)}%
             </span>
             {item.is_modified && (
@@ -59,33 +70,46 @@ export function KnowledgeCard({
           </div>
 
           {/* 标题和内容 */}
-          <h3 className="text-sm font-medium text-gray-800">
+          <h3 className="text-sm font-medium text-card-foreground">
             {item.title || item.content.slice(0, 50)}
           </h3>
           {item.title && (
-            <p className="text-xs text-gray-600 mt-1">{item.content}</p>
+            <p className="text-xs text-muted-foreground mt-1">{item.content}</p>
           )}
 
           {/* 来源 */}
-          <div className="flex items-center gap-2 mt-2 text-[10px] text-gray-500">
-            <div className="flex items-center gap-1 px-1.5 py-0.5 bg-gray-100 rounded">
+          <div className="flex items-center gap-2 mt-2 text-[10px] text-muted-foreground flex-wrap">
+            <div className="flex items-center gap-1 px-1.5 py-0.5 bg-muted rounded">
               <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
               <span>来自 {item.source_sessions.length} 个 session</span>
             </div>
-            <button
-              className="text-blue-600 hover:underline"
-              onClick={() => onViewSources(item)}
-            >
-              查看详情
-            </button>
+            {item.source_sessions.slice(0, 2).map((sid, i) => (
+              <span key={sid}>
+                {i > 0 && <span className="mr-1">·</span>}
+                <span
+                  className="text-blue-600 cursor-pointer hover:underline"
+                  onClick={() => onSessionClick?.(sid)}
+                >
+                  {SESSION_TITLES[sid] || sid.slice(0, 8)}
+                </span>
+              </span>
+            ))}
+            {item.source_sessions.length > 2 && (
+              <span
+                className="text-blue-600 cursor-pointer hover:underline"
+                onClick={() => onViewSources(item)}
+              >
+                +{item.source_sessions.length - 2}
+              </span>
+            )}
           </div>
 
           {/* 同步状态 */}
           {item.synced_at && (
             <div className="flex items-center gap-2 mt-2 text-[10px]">
-              <span className="text-gray-500">已同步到:</span>
+              <span className="text-muted-foreground">已同步到:</span>
               <Badge className={
                 item.write_level === 'project'
                   ? 'bg-green-100 text-green-700'
@@ -93,7 +117,7 @@ export function KnowledgeCard({
               }>
                 {item.write_level === 'project' ? '项目级' : '用户级'}
               </Badge>
-              <span className="text-gray-400">{item.synced_path}</span>
+              <span className="text-muted-foreground">{item.synced_path}</span>
             </div>
           )}
         </div>

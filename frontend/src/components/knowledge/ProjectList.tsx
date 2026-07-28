@@ -18,10 +18,10 @@ export function ProjectList({
   const { projects, loading } = useKnowledgeProjects();
 
   return (
-    <div className="w-72 bg-white rounded-lg border flex flex-col">
+    <div className="w-72 bg-card rounded-lg border flex flex-col">
       <div className="p-3 border-b">
         <div className="flex items-center justify-between mb-2">
-          <h2 className="text-sm font-semibold text-gray-700">Projects</h2>
+          <h2 className="text-sm font-semibold text-card-foreground">Projects</h2>
           <button
             className="text-xs text-blue-600 hover:text-blue-700"
             onClick={onScanProjects}
@@ -38,9 +38,9 @@ export function ProjectList({
 
       <div className="flex-1 overflow-auto p-2 space-y-1">
         {loading ? (
-          <div className="text-xs text-gray-500 text-center py-4">加载中...</div>
+          <div className="text-xs text-muted-foreground text-center py-4">加载中...</div>
         ) : projects.length === 0 ? (
-          <div className="text-xs text-gray-500 text-center py-4">
+          <div className="text-xs text-muted-foreground text-center py-4">
             暂无项目，点击"扫描新项目"添加
           </div>
         ) : (
@@ -50,13 +50,13 @@ export function ProjectList({
               className={`p-2.5 rounded border cursor-pointer ${
                 selectedProject === project.path
                   ? 'border-blue-200 bg-blue-50'
-                  : 'border hover:bg-gray-50'
+                  : 'border hover:bg-accent'
               }`}
               onClick={() => onSelectProject(project.path)}
             >
               <div className="flex items-center gap-2">
                 <svg
-                  className="w-4 h-4 text-gray-500"
+                  className="w-4 h-4 text-muted-foreground"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -72,11 +72,11 @@ export function ProjectList({
                   {project.path.split('/').pop()}
                 </span>
               </div>
-              <div className="text-[10px] text-gray-500 mt-1 ml-6 truncate">
+              <div className="text-[10px] text-muted-foreground mt-1 ml-6 truncate">
                 {project.path}
               </div>
               <div className="flex items-center gap-3 mt-2 ml-6">
-                <span className="text-[10px] text-gray-600">
+                <span className="text-[10px] text-muted-foreground">
                   {project.total_items} 个知识条目
                 </span>
                 {project.pending_items > 0 && (
