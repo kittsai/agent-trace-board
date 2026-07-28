@@ -278,19 +278,23 @@ function App() {
   return (
     <ImagePreviewContext.Provider value={setPreviewImage}>
     <SubagentJumpContext.Provider value={handleOpenSubagent}>
-    <div className="h-screen flex bg-background text-foreground overflow-hidden">
-      {/* 左栏：Session 列表 */}
-      <div className="w-64 flex-shrink-0 border-r flex flex-col overflow-hidden">
-        <div className="px-4 py-3 border-b">
-          <div className="flex items-center gap-2">
-            <img src="/favicon.svg" alt="Logo" className="w-7 h-7" />
-            <span className="font-bold text-sm">Agent Trace Board</span>
-            <nav className="flex gap-1 ml-2">
-              <button className={`px-2 py-1 text-xs rounded ${currentPage === 'sessions' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-100'}`} onClick={() => setCurrentPage('sessions')}>Sessions</button>
-              <button className={`px-2 py-1 text-xs rounded ${currentPage === 'knowledge' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-100'}`} onClick={() => setCurrentPage('knowledge')}>Knowledge</button>
-            </nav>
-          </div>
+    <div className="h-screen flex flex-col bg-background text-foreground overflow-hidden">
+      {/* 顶部栏 */}
+      <header className="h-10 flex-shrink-0 border-b flex items-center px-4 gap-3">
+        <div className="flex items-center gap-2">
+          <img src="/favicon.svg" alt="Logo" className="w-5 h-5" />
+          <span className="font-bold text-sm">Agent Trace Board</span>
         </div>
+        <nav className="flex gap-1">
+          <button className={`px-2 py-1 text-xs rounded ${currentPage === 'sessions' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-100'}`} onClick={() => setCurrentPage('sessions')}>Sessions</button>
+          <button className={`px-2 py-1 text-xs rounded ${currentPage === 'knowledge' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-100'}`} onClick={() => setCurrentPage('knowledge')}>Knowledge</button>
+        </nav>
+      </header>
+
+      {/* 主内容区域 */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* 左栏：Session 列表 */}
+        <div className="w-64 flex-shrink-0 border-r flex flex-col overflow-hidden">
         <div className="p-2 border-b space-y-1.5">
           <h2 className="text-xs font-semibold">Sessions</h2>
           <select

@@ -9,7 +9,7 @@
 - Task 5: complete (commit a3c7fec, review clean)
 - Task 6: complete (commit 030adc9, review clean)
 - Task 7: complete (commit ab45d0c, review clean)
-- Task 8: pending — 功能验证
+- Task 8: complete (commit e2a5c5b, review clean)
 
 ## Findings
 
