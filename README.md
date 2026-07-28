@@ -46,7 +46,7 @@
 ```bash
 # 1. 克隆项目
 git clone <repo-url>
-cd agent-trace-viewer
+cd agent-insight-board
 
 # 2. 安装后端依赖
 cd backend

@@ -1,8 +1,8 @@
 {
-  "name": "agent-trace-board",
+  "name": "agent-insight-board",
   "version": "0.1.0",
   "private": true,
-  "description": "Coding Agent 的执行过程追踪面板",
+  "description": "从 AI Agent 执行过程中萃取可复用知识的工具",
   "scripts": {
     "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
     "dev:backend": "cd backend && python3 -m uvicorn main:app --host 0.0.0.0 --port 18080 --reload",
