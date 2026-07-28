@@ -1,10 +1,10 @@
-# Agent Trace Board
+# Agent Insight Board
 
-Coding Agent 的执行过程追踪面板。
+从 AI Agent 执行过程中萃取可复用知识的工具。
 
-实时监控和事后分析 Claude Code 等 Coding Agent 的执行过程,帮开发者理解 Agent 在做什么、为什么这么做、哪里可以优化。
+实时监控和事后分析 Claude Code 等 Coding Agent 的执行过程,提取、管理、同步知识到 CLAUDE.md 文件。
 
-![Agent Trace Board](docs/images/screenshot.png)
+![Agent Insight Board](docs/images/screenshot.png)
 
 ## 功能特性
 
@@ -29,6 +29,12 @@ Coding Agent 的执行过程追踪面板。
 ### 子 Agent 追踪
 - 对话中 `Agent` 工具调用可点击「查看子 agent」,在抽屉中展开该子 agent 的完整执行 trace
 
+### 知识管理
+- **项目扫描** — 自动发现 `~/.claude/projects/` 下的项目
+- **知识萃取** — 从 Agent 执行过程中提取可复用知识(模式、偏好、技巧)
+- **知识审批** — 待审批/已批准/已归档状态管理
+- **CLAUDE.md 同步** — 支持项目级和用户级双写
+
 ## 环境要求
 
 - **Python** >= 3.11
@@ -40,7 +46,7 @@ Coding Agent 的执行过程追踪面板。
 ```bash
 # 1. 克隆项目
 git clone <repo-url>
-cd agent-trace-board
+cd agent-trace-viewer
 
 # 2. 安装后端依赖
 cd backend
@@ -90,8 +96,10 @@ npm run dev
 | `api/todos` | 任务状态轨迹 |
 | `api/cost` | Token 用量与成本估算 |
 | `api/subagents` | 子 agent trace |
+| `api/knowledge` | 知识管理与 CLAUDE.md 同步 |
 | `api/ws` | WebSocket 实时推送 |
 | `services/watcher` | 文件监听与新 session/step 发现 |
+| `services/analyzer` | 知识萃取与分析 |
 
 ## 技术栈
 
@@ -99,6 +107,7 @@ npm run dev
 - **前端**: React 19 / TypeScript / Vite / TailwindCSS
 - **UI 组件**: shadcn/ui + lucide-react + sonner
 - **渲染**: react-markdown + remark-gfm + react-syntax-highlighter + diff
+- **知识管理**: 项目扫描 / 知识萃取 / CLAUDE.md 同步
 
 ## License
 

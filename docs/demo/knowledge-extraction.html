@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Knowledge Extraction Demo - Agent Trace Board</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    .animate-pulse-slow { animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+    @keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    .slide-in { animation: slideIn 0.3s ease-out; }
+    .knowledge-card { transition: all 0.2s; }
+    .knowledge-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+  <!-- 顶部导航 -->
+  <header class="bg-white border-b sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 h-12 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <h1 class="text-sm font-semibold">Agent Trace Board</h1>
+        <nav class="flex gap-1 ml-4">
+          <button class="px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded">Sessions</button>
+          <button class="px-3 py-1.5 text-sm bg-gray-900 text-white rounded font-medium">Knowledge</button>
+        </nav>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="text-xs text-gray-500">定时分析: 每 5 分钟</span>
+        <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+      </div>
+    </div>
+  </header>
+
+  <div class="max-w-7xl mx-auto px-4 py-4 flex gap-4" style="height: calc(100vh - 48px);">
+    <!-- 左侧：Projects 列表 -->
+    <div class="w-72 bg-white rounded-lg border flex flex-col">
+      <div class="p-3 border-b">
+        <div class="flex items-center justify-between mb-2">
+          <h2 class="text-sm font-semibold text-gray-700">Projects</h2>
+          <button class="text-xs text-blue-600 hover:text-blue-700" onclick="document.getElementById('scanModal').classList.remove('hidden')">扫描新项目</button>
+        </div>
+        <input type="text" placeholder="搜索项目..." class="w-full text-xs border rounded px-2 py-1.5">
+      </div>
+      <div class="flex-1 overflow-auto p-2 space-y-1">
+        <!-- Project 1 - 选中状态 -->
+        <div class="p-2.5 rounded border-2 border-blue-200 bg-blue-50 cursor-pointer">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>
+              <span class="text-xs font-medium">agent-trace-viewer</span>
+            </div>
+          </div>
+          <div class="text-[10px] text-gray-500 mt-1 ml-6">~/Work/project/ai/agent-trace-viewer</div>
+          <div class="flex items-center gap-3 mt-2 ml-6">
+            <span class="text-[10px] text-gray-600">12 个知识条目</span>
+            <span class="text-[10px] text-amber-600">3 待审批</span>
+            <span class="text-[10px] text-green-600">9 已同步</span>
+          </div>
+        </div>
+
+        <!-- Project 2 -->
+        <div class="p-2.5 rounded border hover:bg-gray-50 cursor-pointer">
+          <div class="flex items-center gap-2">
+            <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>
+            <span class="text-xs font-medium">my-web-app</span>
+          </div>
+          <div class="text-[10px] text-gray-500 mt-1 ml-6">~/Work/projects/my-web-app</div>
+          <div class="flex items-center gap-3 mt-2 ml-6">
+            <span class="text-[10px] text-gray-600">8 个知识条目</span>
+            <span class="text-[10px] text-green-600">全部已同步</span>
+          </div>
+        </div>
+
+        <!-- Project 3 -->
+        <div class="p-2.5 rounded border hover:bg-gray-50 cursor-pointer">
+          <div class="flex items-center gap-2">
+            <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>
+            <span class="text-xs font-medium">backend-api</span>
+          </div>
+          <div class="text-[10px] text-gray-500 mt-1 ml-6">~/Work/projects/backend-api</div>
+          <div class="flex items-center gap-3 mt-2 ml-6">
+            <span class="text-[10px] text-gray-600">5 个知识条目</span>
+            <span class="text-[10px] text-amber-600">2 待审批</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 底部：最近分析的 sessions -->
+      <div class="p-3 border-t bg-gray-50">
+        <div class="text-[10px] text-gray-500 font-medium mb-2">最近分析的 Sessions</div>
+        <div class="space-y-1">
+          <div class="flex items-center justify-between text-[10px]">
+            <span class="text-gray-600 truncate">修复登录页面 bug</span>
+            <span class="text-[10px] px-1 py-0.5 bg-green-100 text-green-700 rounded">已分析</span>
+          </div>
+          <div class="flex items-center justify-between text-[10px]">
+            <span class="text-gray-600 truncate">重构成本图表</span>
+            <span class="text-[10px] px-1 py-0.5 bg-green-100 text-green-700 rounded">已分析</span>
+          </div>
+          <div class="flex items-center justify-between text-[10px]">
+            <span class="text-gray-600 truncate">添加图片预览功能</span>
+            <span class="text-[10px] px-1 py-0.5 bg-blue-100 text-blue-700 rounded">分析中</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 右侧：知识条目列表 -->
+    <div class="flex-1 bg-white rounded-lg border flex flex-col">
+      <div class="p-3 border-b">
+        <div class="flex items-center justify-between mb-3">
+          <div>
+            <h2 class="text-sm font-semibold text-gray-700">agent-trace-viewer</h2>
+            <p class="text-xs text-gray-500 mt-0.5">~/Work/project/ai/agent-trace-viewer · 12 个知识条目 · 来自 8 个 sessions</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <button class="text-xs px-3 py-1.5 border rounded hover:bg-gray-50">批量批准</button>
+            <button class="text-xs px-3 py-1.5 bg-gray-900 text-white rounded hover:bg-gray-800" onclick="document.getElementById('syncModal').classList.remove('hidden')">同步到 CLAUDE.md</button>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <div class="flex gap-1">
+            <button class="px-2 py-1 text-xs bg-gray-900 text-white rounded">全部 (12)</button>
+            <button class="px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded hover:bg-gray-200">待审批 (3)</button>
+            <button class="px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded hover:bg-gray-200">已批准 (9)</button>
+          </div>
+          <div class="h-4 w-px bg-gray-200"></div>
+          <select class="text-xs border rounded px-2 py-1">
+            <option>所有类型</option>
+            <option>代码规范</option><option>架构决策</option><option>工具配置</option><option>修复模式</option><option>用户偏好</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="flex-1 overflow-auto p-3 space-y-3">
+        <!-- 条目 1：待审批，多 session 来源 -->
+        <div class="knowledge-card p-3 border rounded-lg hover:border-gray-300">
+          <div class="flex items-start justify-between">
+            <div class="flex-1">
+              <div class="flex items-center gap-2 mb-1.5">
+                <span class="text-[10px] px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded">待审批</span>
+                <span class="text-[10px] px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded">代码规范</span>
+                <span class="text-[10px] text-gray-400">置信度 92%</span>
+              </div>
+              <h3 class="text-sm font-medium text-gray-800">使用 kebab-case 命名文件</h3>
+              <p class="text-xs text-gray-600 mt-1">项目中所有组件文件使用 kebab-case 命名，如 my-component.tsx</p>
+              <!-- 来源：多 session -->
+              <div class="flex items-center gap-2 mt-2 text-[10px] text-gray-500">
+                <div class="flex items-center gap-1 px-1.5 py-0.5 bg-gray-100 rounded">
+                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                  <span>来自 3 个 session</span>
+                </div>
+                <span class="text-blue-600 cursor-pointer hover:underline" onclick="document.getElementById('sessionDetailModal').classList.remove('hidden')">修复登录页面 bug</span>
+                <span>·</span>
+                <span class="text-blue-600 cursor-pointer hover:underline">重构成本图表</span>
+                <span>·</span>
+                <span class="text-blue-600 cursor-pointer hover:underline">+1</span>
+              </div>
+            </div>
+            <div class="flex items-center gap-1 ml-3">
+              <button class="w-7 h-7 flex items-center justify-center rounded border bg-blue-50 text-blue-600 hover:bg-blue-100" title="编辑" onclick="document.getElementById('editModal1').classList.remove('hidden')">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+              </button>
+              <button class="w-7 h-7 flex items-center justify-center rounded border bg-green-50 text-green-600 hover:bg-green-100" title="批准">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+              </button>
+              <button class="w-7 h-7 flex items-center justify-center rounded border bg-red-50 text-red-600 hover:bg-red-100" title="拒绝">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 条目 2：已批准，单 session 来源 -->
+        <div class="knowledge-card p-3 border rounded-lg bg-green-50/30">
+          <div class="flex items-start justify-between">
+            <div class="flex-1">
+              <div class="flex items-center gap-2 mb-1.5">
+                <span class="text-[10px] px-1.5 py-0.5 bg-green-100 text-green-700 rounded">已批准</span>
+                <span class="text-[10px] px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded">架构决策</span>
+                <span class="text-[10px] text-gray-400">置信度 95%</span>
+              </div>
+              <h3 class="text-sm font-medium text-gray-800">使用 SWR 管理服务端状态</h3>
+              <p class="text-xs text-gray-600 mt-1">项目使用 SWR 而非 Redux 管理服务端数据，减少样板代码</p>
+              <div class="flex items-center gap-2 mt-2 text-[10px] text-gray-500">
+                <div class="flex items-center gap-1 px-1.5 py-0.5 bg-gray-100 rounded">
+                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                  <span>来自 重构成本图表</span>
+                </div>
+              </div>
+              <div class="flex items-center gap-2 mt-2 text-[10px]">
+                <span class="text-gray-500">已同步到:</span>
+                <span class="px-1.5 py-0.5 bg-green-100 text-green-700 rounded">项目级 .claude/CLAUDE.md</span>
+              </div>
+            </div>
+            <div class="flex items-center gap-1 ml-3">
+              <button class="w-7 h-7 flex items-center justify-center rounded border bg-gray-100 text-gray-400" title="已批准">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 条目 3：已批准，已修改，用户级 -->
+        <div class="knowledge-card p-3 border rounded-lg bg-green-50/30">
+          <div class="flex items-start justify-between">
+            <div class="flex-1">
+              <div class="flex items-center gap-2 mb-1.5">
+                <span class="text-[10px] px-1.5 py-0.5 bg-green-100 text-green-700 rounded">已批准</span>
+                <span class="text-[10px] px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded">用户偏好</span>
+                <span class="text-[10px] text-gray-400">置信度 90%</span>
+                <span class="text-[10px] px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded">已修改</span>
+              </div>
+              <h3 class="text-sm font-medium text-gray-800">注释和 commit message 使用中文</h3>
+              <p class="text-xs text-gray-600 mt-1">代码注释、commit message 使用中文，保持与团队沟通语言一致</p>
+              <div class="flex items-center gap-2 mt-2 text-[10px] text-gray-500">
+                <div class="flex items-center gap-1 px-1.5 py-0.5 bg-gray-100 rounded">
+                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                  <span>来自 5 个 session</span>
+                </div>
+              </div>
+              <div class="flex items-center gap-2 mt-2 text-[10px]">
+                <span class="text-gray-500">已同步到:</span>
+                <span class="px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded">用户级 ~/.claude/CLAUDE.md</span>
+              </div>
+            </div>
+            <div class="flex items-center gap-1 ml-3">
+              <button class="w-7 h-7 flex items-center justify-center rounded border bg-gray-100 text-gray-400" title="已批准">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 底部统计 -->
+      <div class="p-3 border-t bg-gray-50">
+        <div class="flex items-center justify-between text-xs text-gray-500">
+          <div class="flex items-center gap-4">
+            <span>12 个条目</span>
+            <span class="text-green-600">9 已批准</span>
+            <span class="text-amber-600">3 待审批</span>
+          </div>
+          <div class="flex items-center gap-4">
+            <div class="flex items-center gap-2">
+              <span>写入:</span>
+              <span class="text-green-600">7 项目级</span>
+              <span class="text-purple-600">2 用户级</span>
+            </div>
+            <button class="px-3 py-1 bg-gray-900 text-white rounded hover:bg-gray-800" onclick="document.getElementById('syncModal').classList.remove('hidden')">同步到 CLAUDE.md</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 同步弹窗 -->
+  <div id="syncModal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+    <div class="bg-white rounded-lg shadow-xl w-[480px] max-h-[80vh] overflow-hidden">
+      <div class="p-4 border-b">
+        <div class="flex items-center justify-between">
+          <h3 class="text-sm font-semibold text-gray-800">同步到 CLAUDE.md</h3>
+          <button class="text-gray-400 hover:text-gray-600" onclick="document.getElementById('syncModal').classList.add('hidden')">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+          </button>
+        </div>
+        <p class="text-xs text-gray-500 mt-1">为每个条目选择写入级别</p>
+      </div>
+
+      <div class="p-4 overflow-auto max-h-96 space-y-3">
+        <!-- 条目 1 - 项目级 -->
+        <div class="border rounded-lg p-3">
+          <div class="flex items-start gap-3">
+            <input type="checkbox" class="mt-1 rounded" checked>
+            <div class="flex-1">
+              <div class="flex items-center gap-2">
+                <span class="text-xs font-medium text-gray-800">使用 kebab-case 命名文件</span>
+                <span class="text-[10px] px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded">待审批</span>
+              </div>
+              <p class="text-[10px] text-gray-500 mt-1">项目中所有组件文件使用 kebab-case 命名</p>
+              <div class="flex items-center gap-2 mt-2">
+                <span class="text-[10px] text-gray-500">写入到:</span>
+                <label class="flex items-center gap-1 px-2 py-0.5 text-[10px] bg-green-100 text-green-700 rounded border border-green-200 cursor-pointer">
+                  <input type="radio" name="level_1" value="project" checked class="hidden">
+                  📁 项目级
+                </label>
+                <label class="flex items-center gap-1 px-2 py-0.5 text-[10px] bg-gray-100 text-gray-500 rounded hover:bg-gray-200 cursor-pointer">
+                  <input type="radio" name="level_1" value="user" class="hidden">
+                  👤 用户级
+                </label>
+                <span class="text-[10px] text-gray-400">.claude/CLAUDE.md</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 条目 2 - 用户级 -->
+        <div class="border rounded-lg p-3">
+          <div class="flex items-start gap-3">
+            <input type="checkbox" class="mt-1 rounded" checked>
+            <div class="flex-1">
+              <div class="flex items-center gap-2">
+                <span class="text-xs font-medium text-gray-800">注释和 commit message 使用中文</span>
+                <span class="text-[10px] px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded">待审批</span>
+              </div>
+              <p class="text-[10px] text-gray-500 mt-1">代码注释、commit message 使用中文</p>
+              <div class="flex items-center gap-2 mt-2">
+                <span class="text-[10px] text-gray-500">写入到:</span>
+                <label class="flex items-center gap-1 px-2 py-0.5 text-[10px] bg-gray-100 text-gray-500 rounded hover:bg-gray-200 cursor-pointer">
+                  <input type="radio" name="level_2" value="project" class="hidden">
+                  📁 项目级
+                </label>
+                <label class="flex items-center gap-1 px-2 py-0.5 text-[10px] bg-purple-100 text-purple-700 rounded border border-purple-200 cursor-pointer">
+                  <input type="radio" name="level_2" value="user" checked class="hidden">
+                  👤 用户级
+                </label>
+                <span class="text-[10px] text-gray-400">~/.claude/CLAUDE.md</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 条目 3 - 项目级 -->
+        <div class="border rounded-lg p-3">
+          <div class="flex items-start gap-3">
+            <input type="checkbox" class="mt-1 rounded" checked>
+            <div class="flex-1">
+              <div class="flex items-center gap-2">
+                <span class="text-xs font-medium text-gray-800">shadcn 需要手动移动文件</span>
+                <span class="text-[10px] px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded">待审批</span>
+              </div>
+              <p class="text-[10px] text-gray-500 mt-1">npx shadcn add 会安装到错误路径</p>
+              <div class="flex items-center gap-2 mt-2">
+                <span class="text-[10px] text-gray-500">写入到:</span>
+                <label class="flex items-center gap-1 px-2 py-0.5 text-[10px] bg-green-100 text-green-700 rounded border border-green-200 cursor-pointer">
+                  <input type="radio" name="level_3" value="project" checked class="hidden">
+                  📁 项目级
+                </label>
+                <label class="flex items-center gap-1 px-2 py-0.5 text-[10px] bg-gray-100 text-gray-500 rounded hover:bg-gray-200 cursor-pointer">
+                  <input type="radio" name="level_3" value="user" class="hidden">
+                  👤 用户级
+                </label>
+                <span class="text-[10px] text-gray-400">.claude/CLAUDE.md</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="p-4 border-t bg-gray-50">
+        <div class="flex items-center justify-between">
+          <div class="text-xs text-gray-500">
+            <span>已选 3 个条目</span>
+            <span class="ml-2 text-green-600">2 项目级</span>
+            <span class="ml-2 text-purple-600">1 用户级</span>
+          </div>
+          <div class="flex gap-2">
+            <button class="px-3 py-1.5 text-xs border rounded hover:bg-gray-50" onclick="document.getElementById('syncModal').classList.add('hidden')">取消</button>
+            <button class="px-3 py-1.5 text-xs bg-gray-900 text-white rounded hover:bg-gray-800">确认同步</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 编辑知识条目弹窗 -->
+  <div id="editModal1" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+    <div class="bg-white rounded-lg shadow-xl w-[520px] max-h-[80vh] overflow-hidden">
+      <div class="p-4 border-b">
+        <div class="flex items-center justify-between">
+          <h3 class="text-sm font-semibold text-gray-800">编辑知识条目</h3>
+          <button class="text-gray-400 hover:text-gray-600" onclick="document.getElementById('editModal1').classList.add('hidden')">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="p-4 space-y-4">
+        <!-- 类型选择 -->
+        <div>
+          <label class="block text-xs font-medium text-gray-700 mb-1">类型</label>
+          <select class="w-full text-sm border rounded px-3 py-2">
+            <option selected>代码规范</option>
+            <option>架构决策</option>
+            <option>工具配置</option>
+            <option>修复模式</option>
+            <option>用户偏好</option>
+          </select>
+        </div>
+
+        <!-- 标题 -->
+        <div>
+          <label class="block text-xs font-medium text-gray-700 mb-1">标题</label>
+          <input type="text" value="使用 kebab-case 命名文件" class="w-full text-sm border rounded px-3 py-2">
+        </div>
+
+        <!-- 内容 -->
+        <div>
+          <label class="block text-xs font-medium text-gray-700 mb-1">内容</label>
+          <textarea class="w-full text-sm border rounded px-3 py-2 h-24 resize-none">项目中所有组件文件使用 kebab-case 命名，如 my-component.tsx</textarea>
+        </div>
+
+        <!-- 置信度 -->
+        <div>
+          <label class="block text-xs font-medium text-gray-700 mb-1">置信度: 92%</label>
+          <input type="range" min="0" max="100" value="92" class="w-full">
+          <div class="flex justify-between text-[10px] text-gray-400 mt-1">
+            <span>低</span>
+            <span>高</span>
+          </div>
+        </div>
+
+        <!-- 来源信息（只读） -->
+        <div class="p-3 bg-gray-50 rounded-lg">
+          <div class="text-xs font-medium text-gray-700 mb-2">来源（只读）</div>
+          <div class="space-y-1 text-[10px] text-gray-500">
+            <div class="flex items-center gap-2">
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+              <span>修复登录页面 bug (Turn 5, Turn 8)</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+              <span>重构成本图表 (Turn 3)</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 写入级别 -->
+        <div>
+          <label class="block text-xs font-medium text-gray-700 mb-1">写入级别</label>
+          <div class="flex gap-2">
+            <label class="flex items-center gap-1 px-3 py-1.5 text-xs bg-green-100 text-green-700 rounded border border-green-200 cursor-pointer">
+              <input type="radio" name="edit_level" value="project" checked class="hidden">
+              📁 项目级
+            </label>
+            <label class="flex items-center gap-1 px-3 py-1.5 text-xs bg-gray-100 text-gray-500 rounded hover:bg-gray-200 cursor-pointer">
+              <input type="radio" name="edit_level" value="user" class="hidden">
+              👤 用户级
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="p-4 border-t bg-gray-50 flex items-center justify-end gap-2">
+        <button class="px-3 py-1.5 text-xs border rounded hover:bg-gray-50" onclick="document.getElementById('editModal1').classList.add('hidden')">取消</button>
+        <button class="px-3 py-1.5 text-xs bg-gray-900 text-white rounded hover:bg-gray-800">保存修改</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 扫描新项目弹窗 -->
+  <div id="scanModal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+    <div class="bg-white rounded-lg shadow-xl w-[520px] max-h-[80vh] overflow-hidden">
+      <div class="p-4 border-b">
+        <div class="flex items-center justify-between">
+          <div>
+            <h3 class="text-sm font-semibold text-gray-800">扫描新项目</h3>
+            <p class="text-xs text-gray-500 mt-0.5">从 ~/.claude/projects/ 发现的项目</p>
+          </div>
+          <button class="text-gray-400 hover:text-gray-600" onclick="document.getElementById('scanModal').classList.add('hidden')">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="p-4 overflow-auto max-h-96 space-y-3">
+        <!-- 已添加的项目（灰色） -->
+        <div class="text-[10px] text-gray-400 font-medium mb-1">已添加的项目</div>
+        <div class="border rounded-lg p-3 bg-gray-50 opacity-60">
+          <div class="flex items-center gap-3">
+            <input type="checkbox" class="rounded" disabled checked>
+            <div class="flex-1">
+              <div class="flex items-center gap-2">
+                <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>
+                <span class="text-xs font-medium text-gray-600">agent-trace-viewer</span>
+              </div>
+              <div class="text-[10px] text-gray-400 mt-1 ml-6">~/Work/project/ai/agent-trace-viewer</div>
+            </div>
+            <span class="text-[10px] px-1.5 py-0.5 bg-gray-200 text-gray-500 rounded">已添加</span>
+          </div>
+        </div>
+
+        <!-- 发现的新项目 -->
+        <div class="text-[10px] text-gray-400 font-medium mb-1 mt-4">发现 3 个新项目</div>
+
+        <div class="border rounded-lg p-3 hover:border-blue-200 cursor-pointer">
+          <div class="flex items-center gap-3">
+            <input type="checkbox" class="rounded">
+            <div class="flex-1">
+              <div class="flex items-center gap-2">
+                <svg class="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>
+                <span class="text-xs font-medium">frontend-app</span>
+              </div>
+              <div class="text-[10px] text-gray-500 mt-1 ml-6">~/Work/projects/frontend-app</div>
+              <div class="flex items-center gap-3 mt-1 ml-6">
+                <span class="text-[10px] text-gray-500">8 个 sessions</span>
+                <span class="text-[10px] text-gray-500">·</span>
+                <span class="text-[10px] text-gray-500">最后活动: 2 天前</span>
+              </div>
+            </div>
+            <span class="text-[10px] px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded">新项目</span>
+          </div>
+        </div>
+
+        <div class="border rounded-lg p-3 hover:border-blue-200 cursor-pointer">
+          <div class="flex items-center gap-3">
+            <input type="checkbox" class="rounded">
+            <div class="flex-1">
+              <div class="flex items-center gap-2">
+                <svg class="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>
+                <span class="text-xs font-medium">backend-api</span>
+              </div>
+              <div class="text-[10px] text-gray-500 mt-1 ml-6">~/Work/projects/backend-api</div>
+              <div class="flex items-center gap-3 mt-1 ml-6">
+                <span class="text-[10px] text-gray-500">12 个 sessions</span>
+                <span class="text-[10px] text-gray-500">·</span>
+                <span class="text-[10px] text-gray-500">最后活动: 1 小时前</span>
+              </div>
+            </div>
+            <span class="text-[10px] px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded">新项目</span>
+          </div>
+        </div>
+
+        <div class="border rounded-lg p-3 hover:border-blue-200 cursor-pointer">
+          <div class="flex items-center gap-3">
+            <input type="checkbox" class="rounded">
+            <div class="flex-1">
+              <div class="flex items-center gap-2">
+                <svg class="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>
+                <span class="text-xs font-medium">mobile-app</span>
+              </div>
+              <div class="text-[10px] text-gray-500 mt-1 ml-6">~/Work/projects/mobile-app</div>
+              <div class="flex items-center gap-3 mt-1 ml-6">
+                <span class="text-[10px] text-gray-500">5 个 sessions</span>
+                <span class="text-[10px] text-gray-500">·</span>
+                <span class="text-[10px] text-gray-500">最后活动: 1 周前</span>
+              </div>
+            </div>
+            <span class="text-[10px] px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded">新项目</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="p-4 border-t bg-gray-50">
+        <div class="flex items-center justify-between">
+          <div class="text-xs text-gray-500">
+            <span>发现 3 个新项目，已选择 0 个</span>
+          </div>
+          <div class="flex gap-2">
+            <button class="px-3 py-1.5 text-xs border rounded hover:bg-gray-50" onclick="document.getElementById('scanModal').classList.add('hidden')">取消</button>
+            <button class="px-3 py-1.5 text-xs bg-gray-900 text-white rounded hover:bg-gray-800">添加并分析</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Session 详情浮层 -->
+  <div id="sessionDetailModal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+    <div class="bg-white rounded-lg shadow-xl w-[640px] max-h-[85vh] overflow-hidden flex flex-col">
+      <!-- 头部 -->
+      <div class="p-4 border-b">
+        <div class="flex items-center justify-between">
+          <div>
+            <h3 class="text-sm font-semibold text-gray-800">修复登录页面 bug</h3>
+            <div class="flex items-center gap-3 mt-1 text-[10px] text-gray-500">
+              <span>Session: abc-123-def</span>
+              <span>·</span>
+              <span>12 轮对话</span>
+              <span>·</span>
+              <span>3 分钟前</span>
+            </div>
+          </div>
+          <button class="text-gray-400 hover:text-gray-600" onclick="document.getElementById('sessionDetailModal').classList.add('hidden')">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+          </button>
+        </div>
+        <div class="mt-2 text-xs text-gray-600">
+          提取的知识：<span class="font-medium">使用 kebab-case 命名文件</span>
+        </div>
+      </div>
+
+      <!-- 相关步骤 -->
+      <div class="flex-1 overflow-auto p-4">
+        <div class="text-[10px] text-gray-400 font-medium mb-3">相关步骤（知识来源）</div>
+
+        <div class="space-y-3">
+          <!-- Step 1 -->
+          <div class="flex gap-3 p-3 bg-blue-50 rounded-lg border border-blue-100">
+            <div class="flex flex-col items-center">
+              <div class="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center">
+                <span class="text-[10px] font-medium text-blue-700">5</span>
+              </div>
+              <div class="w-px h-full bg-blue-200 mt-1"></div>
+            </div>
+            <div class="flex-1">
+              <div class="flex items-center gap-2 mb-1">
+                <span class="text-[10px] px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded">Turn 5</span>
+                <span class="text-[10px] text-gray-400">编辑文件</span>
+              </div>
+              <div class="text-xs font-medium text-gray-800">Edit src/components/my-component.tsx</div>
+              <div class="text-[10px] text-gray-500 mt-1">
+                <span class="font-medium">用户:</span> 帮我把这个组件改成 kebab-case 命名
+              </div>
+              <div class="text-[10px] text-gray-500 mt-1">
+                <span class="font-medium">AI:</span> 已将组件重命名为 my-component.tsx
+              </div>
+              <div class="mt-2 p-2 bg-white rounded border text-[10px]">
+                <div class="text-gray-400 mb-1">提取依据：</div>
+                <div class="text-gray-600">用户明确要求使用 kebab-case 命名，AI 执行并确认</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 2 -->
+          <div class="flex gap-3 p-3 bg-gray-50 rounded-lg">
+            <div class="flex flex-col items-center">
+              <div class="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center">
+                <span class="text-[10px] font-medium text-gray-600">8</span>
+              </div>
+              <div class="w-px h-full bg-gray-200 mt-1"></div>
+            </div>
+            <div class="flex-1">
+              <div class="flex items-center gap-2 mb-1">
+                <span class="text-[10px] px-1.5 py-0.5 bg-gray-200 text-gray-600 rounded">Turn 8</span>
+                <span class="text-[10px] text-gray-400">创建文件</span>
+              </div>
+              <div class="text-xs font-medium text-gray-800">Write src/components/button-group.tsx</div>
+              <div class="text-[10px] text-gray-500 mt-1">
+                <span class="font-medium">AI:</span> 创建新组件 button-group.tsx（自动遵循 kebab-case）
+              </div>
+              <div class="mt-2 p-2 bg-white rounded border text-[10px]">
+                <div class="text-gray-400 mb-1">提取依据：</div>
+                <div class="text-gray-600">AI 主动遵循项目命名规范，无需用户提示</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 3 -->
+          <div class="flex gap-3 p-3 bg-gray-50 rounded-lg">
+            <div class="flex flex-col items-center">
+              <div class="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center">
+                <span class="text-[10px] font-medium text-gray-600">10</span>
+              </div>
+            </div>
+            <div class="flex-1">
+              <div class="flex items-center gap-2 mb-1">
+                <span class="text-[10px] px-1.5 py-0.5 bg-gray-200 text-gray-600 rounded">Turn 10</span>
+                <span class="text-[10px] text-gray-400">读取文件</span>
+              </div>
+              <div class="text-xs font-medium text-gray-800">Read src/components/my-component.tsx</div>
+              <div class="text-[10px] text-gray-500 mt-1">
+                <span class="font-medium">AI:</span> 读取文件确认命名正确
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 置信度说明 -->
+        <div class="mt-4 p-3 bg-amber-50 rounded-lg border border-amber-100">
+          <div class="flex items-start gap-2">
+            <svg class="w-4 h-4 text-amber-600 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            <div class="text-[10px] text-amber-800">
+              <div class="font-medium mb-1">置信度计算</div>
+              <div>基于 3 个相关步骤，包含用户明确指令（Turn 5）+ AI 自主遵循（Turn 8, 10）</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 底部操作 -->
+      <div class="p-4 border-t bg-gray-50 flex items-center justify-between">
+        <button class="text-xs text-blue-600 hover:text-blue-700">在 Sessions 中查看完整对话 →</button>
+        <button class="px-3 py-1.5 text-xs border rounded hover:bg-gray-50" onclick="document.getElementById('sessionDetailModal').classList.add('hidden')">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 分析中提示条 -->
+  <div class="fixed bottom-4 left-1/2 -translate-x-1/2 bg-gray-900 text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-3">
+    <div class="animate-pulse-slow">
+      <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
+      </svg>
+    </div>
+    <span class="text-sm">正在分析: 添加图片预览功能 (agent-trace-viewer)</span>
+    <button class="text-xs text-gray-400 hover:text-white">取消</button>
+  </div>
+</body>
+</html>

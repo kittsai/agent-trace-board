@@ -1,6 +1,6 @@
 /** API 客户端 */
 
-import type { Session, Step, Stats, Turn, FileChange, FileChangeDiff, TodoTask, CostAnalysis, SubagentSummary, SubagentTrace } from '../types';
+import type { Session, Step, Stats, Turn, FileChange, FileChangeDiff, TodoTask, CostAnalysis, SubagentSummary, SubagentTrace, KnowledgeItem, KnowledgeProject, KnowledgeStats } from '../types';
 
 const BASE = '/api';
 
@@ -94,4 +94,50 @@ export const subagentsAPI = {
     ),
   getTrace: (sessionId: string, toolUseId: string) =>
     fetchJSON<SubagentTrace>(`${BASE}/sessions/${sessionId}/subagents/${toolUseId}`),
+};
+
+// Knowledge
+export const knowledgeAPI = {
+  list: (params?: { project_path?: string; status?: string; type?: string }) => {
+    const qs = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([k, v]) => {
+        if (v) qs.set(k, v);
+      });
+    }
+    return fetchJSON<KnowledgeItem[]>(`${BASE}/knowledge/items${qs.toString() ? `?${qs}` : ''}`);
+  },
+
+  getProjects: () =>
+    fetchJSON<KnowledgeProject[]>(`${BASE}/knowledge/projects`),
+
+  getStats: (projectPath?: string) => {
+    const qs = new URLSearchParams();
+    if (projectPath) qs.set('project_path', projectPath);
+    return fetchJSON<KnowledgeStats>(`${BASE}/knowledge/stats${qs.toString() ? `?${qs}` : ''}`);
+  },
+
+  approve: (itemId: string) =>
+    fetchJSON<void>(`${BASE}/knowledge/items/${itemId}/approve`, {
+      method: 'POST',
+    }),
+
+  reject: (itemId: string) =>
+    fetchJSON<void>(`${BASE}/knowledge/items/${itemId}/reject`, {
+      method: 'POST',
+    }),
+
+  update: (itemId: string, updates: Partial<KnowledgeItem>) =>
+    fetchJSON<void>(`${BASE}/knowledge/items/${itemId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates),
+    }),
+
+  batchApprove: (itemIds: string[]) =>
+    fetchJSON<void>(`${BASE}/knowledge/batch-approve`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ item_ids: itemIds }),
+    }),
 };

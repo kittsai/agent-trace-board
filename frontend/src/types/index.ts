@@ -211,3 +211,42 @@ export interface WSNewSessionEvent {
 }
 
 export type WSEvent = WSStepEvent | WSSessionStatusEvent | WSNewSessionEvent;
+
+// Knowledge types
+export interface KnowledgeItem {
+  id: string;
+  project_path: string;
+  type: string;
+  content: string;
+  title?: string;
+  confidence: number;
+  status: string;
+  source_sessions: string[];
+  source_turns: Array<{
+    session_id: string;
+    turn_index: number;
+    description?: string;
+  }>;
+  write_level: string;
+  is_modified: boolean;
+  created_at: string;
+  approved_at?: string;
+  synced_at?: string;
+  synced_path?: string;
+}
+
+export interface KnowledgeProject {
+  path: string;
+  total_items: number;
+  pending_items: number;
+  synced_items: number;
+}
+
+export interface KnowledgeStats {
+  total: number;
+  pending: number;
+  approved: number;
+  rejected: number;
+  project_level: number;
+  user_level: number;
+}

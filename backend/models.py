@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Dict, List, Optional
 
 from pydantic import BaseModel
+
+from services.analyzer.models import KnowledgeType, KnowledgeStatus, WriteLevel, SourceTurn
 
 
 class StepOut(BaseModel):
@@ -63,3 +66,22 @@ class StatsOut(BaseModel):
     total_duration_ms: int
     tool_counts: Dict[str, int]
     type_counts: Dict[str, int]
+
+
+class KnowledgeItemOut(BaseModel):
+    """知识条目 API 响应格式。"""
+    id: str
+    project_path: str
+    type: str
+    content: str
+    title: Optional[str] = None
+    confidence: float
+    status: str
+    source_sessions: List[str] = []
+    source_turns: List[dict] = []
+    write_level: str
+    is_modified: bool
+    created_at: str  # ISO 格式
+    approved_at: Optional[str] = None
+    synced_at: Optional[str] = None
+    synced_path: Optional[str] = None
