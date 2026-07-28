@@ -55,7 +55,7 @@ def _discover_projects() -> list[dict]:
             continue
 
         # 将目录名转换为实际项目路径
-        # -Users-cosmic-Work-project-ai-agent-trace-viewer -> /Users/cosmic/Work/project/ai/agent-trace-viewer
+        # -Users-cosmic-Work-project-ai-agent-insight-board -> /Users/cosmic/Work/project/ai/agent-insight-board
         project_path = "/" + dir_name.lstrip("-").replace("-", "/")
 
         # 检查路径是否有效
