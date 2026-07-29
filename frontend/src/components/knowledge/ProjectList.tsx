@@ -2,7 +2,10 @@
  * 项目列表组件
  */
 
+import { useState } from 'react';
+import { Settings } from 'lucide-react';
 import { useKnowledgeProjects } from '@/hooks/useKnowledge';
+import { SettingsModal } from './SettingsModal';
 
 interface ProjectListProps {
   selectedProject: string | null;
@@ -16,18 +19,28 @@ export function ProjectList({
   onScanProjects,
 }: ProjectListProps) {
   const { projects, loading } = useKnowledgeProjects();
+  const [showSettings, setShowSettings] = useState(false);
 
   return (
     <div className="w-72 bg-card rounded-lg border flex flex-col">
       <div className="p-3 border-b">
         <div className="flex items-center justify-between mb-2">
           <h2 className="text-sm font-semibold text-card-foreground">Projects</h2>
-          <button
-            className="text-xs text-blue-600 hover:text-blue-700"
-            onClick={onScanProjects}
-          >
-            扫描新项目
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              className="p-1 hover:bg-accent rounded"
+              onClick={() => setShowSettings(true)}
+              title="知识萃取设置"
+            >
+              <Settings className="w-3.5 h-3.5 text-muted-foreground" />
+            </button>
+            <button
+              className="text-xs text-blue-600 hover:text-blue-700"
+              onClick={onScanProjects}
+            >
+              扫描新项目
+            </button>
+          </div>
         </div>
         <input
           type="text"
@@ -94,6 +107,16 @@ export function ProjectList({
           ))
         )}
       </div>
+
+      {showSettings && (
+        <SettingsModal
+          onClose={() => setShowSettings(false)}
+          onSave={(settings) => {
+            console.log('Settings saved:', settings);
+            // TODO: 保存到后端
+          }}
+        />
+      )}
     </div>
   );
 }

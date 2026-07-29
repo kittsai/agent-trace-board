@@ -9,10 +9,20 @@ import { KnowledgeCard } from './KnowledgeCard';
 import { EditModal } from './EditModal';
 import { SyncModal } from './SyncModal';
 import { SessionDetailModal } from './SessionDetailModal';
+import { AnalysisStatusBar } from './AnalysisStatusBar';
+
+interface AnalysisStatus {
+  isAnalyzing: boolean;
+  currentSession: string | null;
+  projectName: string | null;
+}
 
 interface KnowledgeListProps {
   projectPath: string | null;
   onJumpToSession?: (sessionId: string) => void;
+  onExtract?: (projectPath: string) => void;
+  analysisStatus?: AnalysisStatus;
+  onCancelAnalysis?: () => void;
 }
 
 const TYPE_FILTERS = [
@@ -24,7 +34,13 @@ const TYPE_FILTERS = [
   { value: 'preference', label: '用户偏好' },
 ];
 
-export function KnowledgeList({ projectPath, onJumpToSession }: KnowledgeListProps) {
+export function KnowledgeList({
+  projectPath,
+  onJumpToSession,
+  onExtract,
+  analysisStatus,
+  onCancelAnalysis,
+}: KnowledgeListProps) {
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [typeFilter, setTypeFilter] = useState<string>('');
   const [editingItem, setEditingItem] = useState<KnowledgeItem | null>(null);
@@ -44,14 +60,20 @@ export function KnowledgeList({ projectPath, onJumpToSession }: KnowledgeListPro
     }
   };
 
-  const handleSync = async (syncItems: Array<{ id: string; write_level: string }>) => {
+  const handleSync = async (syncItems: Array<{ id: string; target: string }>) => {
     console.log('Syncing items:', syncItems);
+    // TODO: 调用后端同步 API
+  };
+
+  const handleExtract = async () => {
+    if (!projectPath || !onExtract) return;
+    onExtract(projectPath);
   };
 
   const projectName = projectPath?.split('/').pop() || '未知项目';
 
   return (
-    <div className="flex-1 bg-card rounded-lg border flex flex-col overflow-hidden">
+    <div className="flex-1 bg-card rounded-lg border flex flex-col overflow-hidden relative">
       <div className="p-3 border-b flex-shrink-0">
         <div className="flex items-center justify-between mb-3">
           <div>
@@ -59,6 +81,13 @@ export function KnowledgeList({ projectPath, onJumpToSession }: KnowledgeListPro
             <p className="text-xs text-muted-foreground mt-0.5">{projectPath} · {items.length} 个知识条目</p>
           </div>
           <div className="flex items-center gap-2">
+            <button
+              className="text-xs px-3 py-1.5 border rounded hover:bg-accent disabled:opacity-50"
+              onClick={handleExtract}
+              disabled={analysisStatus?.isAnalyzing}
+            >
+              {analysisStatus?.isAnalyzing ? '萃取中...' : '萃取知识'}
+            </button>
             <button className="text-xs px-3 py-1.5 border rounded hover:bg-accent" onClick={handleBatchApprove}>批量批准</button>
             <button className="text-xs px-3 py-1.5 bg-primary text-primary-foreground rounded hover:bg-primary/90" onClick={() => setShowSyncModal(true)}>同步到 CLAUDE.md</button>
           </div>
@@ -102,16 +131,13 @@ export function KnowledgeList({ projectPath, onJumpToSession }: KnowledgeListPro
         )}
       </div>
 
-      <div className="p-3 border-t bg-muted flex-shrink-0">
-        <div className="flex items-center justify-between text-xs text-muted-foreground">
-          <div className="flex items-center gap-4">
-            <span>{items.length} 个条目</span>
-            <span className="text-green-600">{items.filter((i) => i.status === 'approved').length} 已批准</span>
-            <span className="text-amber-600">{items.filter((i) => i.status === 'pending').length} 待审批</span>
-          </div>
-          <button className="px-3 py-1 bg-primary text-primary-foreground rounded hover:bg-primary/90" onClick={() => setShowSyncModal(true)}>同步到 CLAUDE.md</button>
-        </div>
-      </div>
+      {/* 分析状态栏 */}
+      <AnalysisStatusBar
+        isAnalyzing={analysisStatus?.isAnalyzing || false}
+        currentSession={analysisStatus?.currentSession || null}
+        projectName={analysisStatus?.projectName || null}
+        onCancel={onCancelAnalysis}
+      />
 
       <EditModal item={editingItem} onClose={() => setEditingItem(null)} onSave={updateItem} />
       {showSyncModal && <SyncModal items={allItems} onClose={() => setShowSyncModal(false)} onSync={handleSync} />}
