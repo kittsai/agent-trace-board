@@ -25,10 +25,21 @@ class AnalyzerService:
         self.analyzer = ClaudeCodeAnalyzer()
         self._knowledge_items: dict[str, KnowledgeItem] = {}
         self._analysis_jobs: dict[str, AnalysisJob] = {}
+        self._projects: dict[str, dict] = {}  # 存储添加的项目
         self._init_mock_data()
 
     def _init_mock_data(self):
         """初始化模拟数据。"""
+        # 初始化模拟项目
+        self._projects = {
+            "/Users/cosmic/Work/project/ai/agent-insight-board": {
+                "path": "/Users/cosmic/Work/project/ai/agent-insight-board",
+                "total_items": 0,
+                "pending_items": 0,
+                "synced_items": 0,
+            }
+        }
+
         mock_items = [
             KnowledgeItem(
                 id="mock-1",
@@ -107,8 +118,19 @@ class AnalyzerService:
 
     def get_projects(self) -> list[dict]:
         """获取所有项目及其知识条目统计。"""
+        # 重新计算所有项目的统计信息
         projects: dict[str, dict] = {}
 
+        # 先添加已存储的项目
+        for path, project in self._projects.items():
+            projects[path] = {
+                "path": path,
+                "total_items": 0,
+                "pending_items": 0,
+                "synced_items": 0,
+            }
+
+        # 从 knowledge items 统计
         for item in self._knowledge_items.values():
             project_path = item.project_path
             if project_path not in projects:
@@ -128,19 +150,19 @@ class AnalyzerService:
 
     def add_project(self, project_path: str) -> dict:
         """添加项目。"""
-        # 返回项目信息（如果已存在则返回现有信息）
-        projects = self.get_projects()
-        for p in projects:
-            if p["path"] == project_path:
-                return p
+        # 如果已存在，返回现有信息
+        if project_path in self._projects:
+            return self._projects[project_path]
 
-        # 新项目，返回基本信息
-        return {
+        # 创建新项目
+        project = {
             "path": project_path,
             "total_items": 0,
             "pending_items": 0,
             "synced_items": 0,
         }
+        self._projects[project_path] = project
+        return project
 
     def get_knowledge_items(
         self,
